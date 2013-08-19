@@ -1,4 +1,4 @@
-# cansecurity
+# Activator
 
 ## Overview
 activator is the **simple** way to handle user activation and password reset for your nodejs apps!
@@ -94,6 +94,8 @@ Activation is simple, just add the route handler *after* you have created the us
 app.post("/users",createUser,activator.createActivate);
 ````
 
+activator assumes that the new user ID will be on the request in `req.userid` or `req.user.id`. If one of those is not available, it will send a `500` error.
+
 When done, activator will send a `201` response code and a response body whose text content is the URL to be used to activate.
 
 #### Complete an activation
@@ -123,6 +125,8 @@ app.post("/passwordreset",activator.createPasswordReset);
 ````
 
 When done, activator will send a `201` response code and a response body whose text content is the URL to be used to reset the password.
+
+Activator assumes that the login/email/ID to search for will be in `req.param("user")`.
 
 #### Complete a password reset
 Once the user actually clicks on the link, you need to complete the password reset:
