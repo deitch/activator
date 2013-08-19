@@ -1,0 +1,160 @@
+# cansecurity
+
+## Overview
+activator is the **simple** way to handle user activation and password reset for your nodejs apps!
+
+Example:
+    
+    var express = require('express'), app = express(), activator = require('activator');
+		
+		activator.init({user:userModel,url:URL,templates:mailTemplatesDir});
+		
+		app.user(app.router);
+		
+		// activate a user
+		app.post("/user",activator.createActivate);
+		app.put("/user/:user/active",activator.completeActivate);
+		
+		// reset a password
+		app.post("/passwordreset",activator.createPasswordReset);
+		app.put("/passwordreset/:user",activator.completePasswordReset);
+
+
+
+## Installation
+Installation is simple, just install the npm module:
+
+    npm install activator
+
+
+## Usage
+First *initialize* your activator instance, then use its methods to activate users and reset passwords
+
+### Initialization
+In order for activator to work, it needs to be able to read your user instances and save to them. It also needs to be able to compose and send emails.
+
+    activator = require('activator');
+		activator.init(config);
+
+The `config` object passed to `activator.init()` **must** contain the following keys:
+
+* `user`: object that allows activator to find and save a user object. See below.
+* `url`: string that describes how we will send email. See below.
+* `templates`: string describing the full path to the mail templates. See below.
+
+##### user
+The user object needs to have two methods, with the following signatures:
+
+    user.find(login,callback);
+		
+Where:
+
+* `login`: string with which the user logs in. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it.
+* `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` should be `null` or `undefined`. 
+
+activator also needs to be able to save a user:
+
+    user.save(id,data,callback);
+
+Where:
+
+* `id`: ID of the user to save
+* `data`: the data to update the user as an object, e.g.: `{activation_code: "asqefcehe78qa"}`
+* `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` should be `null` or `undefined`.
+
+##### url
+URL string of how activator should send mail. Structured as follows:
+
+    protocol://user:pass@hostname:port/domain/sender
+		
+* `protocol`: normally "smtp", can be "smtps"
+* `user`: the user with which to login to the SMTP server, if authentication is required.
+* `pass`: the password with which to login to the SMTP server, if authentication is required.
+* `hostname`: the hostname of the server, e.g. "smtp.gmail.com".
+* `port`: the port to use.
+* `domain`: the domain from which the mail is sent, when the mail server is first connected to.
+* `sender`: the email to use as the sender or "from" of the emails sent. Can be in the format `name@domain.com` or `My Name <name@domain.com>`. Should always be URL-encoded (or else you'll never get it into a URL!)
+
+##### templates
+The directory where you keep text files that serve as mail templates. See below under the section templates.
+
+
+### Activation
+Activation is the two-step process wherein a user first *creates* their account and *then* confirms (or activates) it by clicking on a link in an email or entering a short code via SMS/iMessage/etc.
+
+activator provides the route handlers to create the activation code on the account and send the email, and then confirm the entered code to mark the user activated.
+
+activator does **not** create the user; it leaves that up to you, since everyone likes to do it just a little differently.
+
+
+#### Create an activation
+Activation is simple, just add the route handler *after* you have created the user:
+
+````JavaScript
+app.post("/users",createUser,activator.createActivate);
+````
+
+When done, activator will send a `201` response code and a response body whose text content is the URL to be used to activate.
+
+#### Complete an activation
+Once the user actually clicks on the link, you need to complete the activation:
+
+````JavaScript
+app.put("/users/:user/activation",activator.completeActivate);
+````
+
+activator will return a `200` if successful, a `400` if there is an error, along with error information, and a `404` if it cannot find that user.
+
+activator assumes the following:
+
+1. The express parameter `user` (i.e. `/users/:user/whatever/foo`) contains the user identifier to pass to `user.find()` as the first parameter. It will retrieve it using `req.param('user')`
+2. The `req.body` or `req.query` will contain the parameter `code` which has the actual activation code. It will retrieve it using `req.param('code')`
+
+If it is successful activating, it will return `200`, a `400` if there is an error (including invalid activation code), and a `404` if the user cannot be found.
+
+### Password Reset
+Password reset is a two-step process in which the user requests a password reset link, normally delivered by email, and then uses that link to set a new password. Essentially, the user requests a time-limited one-time code that is delivered to the user and allows them to set a new password.
+
+#### Create a password reset
+Creating a password reset is simple, just add the route handler:
+
+````JavaScript
+app.post("/passwordreset",activator.createPasswordReset);
+````
+
+When done, activator will send a `201` response code and a response body whose text content is the URL to be used to reset the password.
+
+#### Complete a password reset
+Once the user actually clicks on the link, you need to complete the password reset:
+
+````JavaScript
+app.put("/users/:user/passwordreset",activator.completePasswordReset);
+````
+
+activator will return a `200` if successful, a `400` if there is an error, along with error information, and a `404` if it cannot find that user.
+
+activator assumes the following:
+
+1. The express parameter `user` (i.e. `/users/:user/whatever/foo`) contains the user identifier to pass to `user.find()` as the first parameter. It will retrieve it using `req.param('user')`
+2. The `req.body` or `req.query` will contain the parameter `code` which has the actual password reset code, and the parameter `password` which is the new password to set. It will retrieve them using `req.param('code')` and `req.param('password')`.
+
+If it is successful resetting the password, it will return `200`, a `400` if there is an error (including invalid code), and a `404` if the user cannot be found.
+
+
+### Templates
+In order to send an email (yes, we are thinking about SMS for the future). activator needs to have templates. The templates are simple text files that contain the text or HTML to send.
+
+The templates should be in the directory passed to `activator.init()` as the option `templates`. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate" or "passwordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
+
+Each template file must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
+
+Each template file follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). You can use `<%= url %>` to indicate where the generated URL should be embedded.
+
+Internationalization support is just around the corner...
+
+## Testing
+To run the tests, from the root directory, run `npm test`.
+
+## License
+Released under the MIT License. 
+Copyright Avi Deitcher https://github.com/deitch
