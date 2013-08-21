@@ -42,6 +42,7 @@ The `config` object passed to `activator.init()` **must** contain the following 
 * `url`: string that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
 
+
 ##### user
 The user object needs to have two methods, with the following signatures:
 
@@ -50,7 +51,7 @@ The user object needs to have two methods, with the following signatures:
 Where:
 
 * `login`: string with which the user logs in. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it.
-* `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` should be `null` or `undefined`. 
+* `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` **must** be `null` (not `undefined`). If an object is found, then `data` **must** be a single JavaScript object.
 
 activator also needs to be able to save a user:
 
@@ -60,7 +61,7 @@ Where:
 
 * `id`: ID of the user to save
 * `data`: the data to update the user as an object, e.g.: `{activation_code: "asqefcehe78qa"}`
-* `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` should be `null` or `undefined`.
+* `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
 ##### url
 URL string of how activator should send mail. Structured as follows:
@@ -152,7 +153,47 @@ The templates should be in the directory passed to `activator.init()` as the opt
 
 Each template file must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
 
-Each template file follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). You can use `<%= url %>` to indicate where the generated URL should be embedded.
+Remember, activator is a *server-side* product, so it really has no clue if the page the user should go to is https://myserver.com/funny/page/activate/fooooo.html or something a little more sane like https://myserver.com/activate.html
+
+How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the template files for passwordreset and activate. 
+
+What you can do is have activator embed the necessary information into the templates before sending the email. Each template file follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). All you need to do is embed the following anywhere (and as many times as you want) inside the template:
+
+    <%= abc %>
+		
+and every such instance will be replaced by the value of `abc`. So if `abc = "John"`, then 
+
+    This is an email for <%= abc %>, 
+		   hi there <%= abc %>.
+
+Will be turned into
+
+    This is an email for John,
+		   hi there John.
+			 
+So what variables are available inside the templates?
+
+* `code`: the activation or password reset code
+* `email`: the email of the recipient user
+* `id`: the internal user ID of the user
+* `request`: the `request` object that was passed to the route handler, from which you can extract lots of headers, for example the protocol at `req.protocol` or the hostname from `req.headers.host`. 
+
+So if your password reset page is on the same host and protocol as the request that came in but at "/reset/my/password", and you want to include the code in the URL as part of a query but also add it to the page, you could do:
+
+
+    Hello,
+		
+		You have asked to reset your password for MySite. To reset your password, please click on the following link:
+		
+		<%= request.protocol %><%= req.headers.host %>/reset/my/password?code=<%= code %>&user=<%= id %>
+		
+		Or just copy and paste that link and enter your code as <%= code %>.
+		
+		Thanks! 
+		From: the MySite team
+
+
+
 
 Internationalization support is just around the corner...
 
