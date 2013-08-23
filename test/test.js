@@ -137,6 +137,7 @@ describe('activator', function(){
 				async.waterfall([
 					function (cb) {r.post('/users').expect(201,cb);},
 					function (res,cb) {
+						res.text.should.equal("2");
 						email = users["2"].email;
 						handler = aHandler(email,cb);
 						mail.bind(email,handler);
