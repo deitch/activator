@@ -45,7 +45,7 @@ MAILPORT = 30111,
 url = "smtp://localhost:"+MAILPORT+"/gopickup.net/"+escape("GoPickup Test <test@gopickup.net>"),
 createUser = function (req,res,next) {
 	users["2"] = {id:"2",email:"you@me.com",password:"5678"};
-	req.userid = "2";
+	req.activator = {id:"2",body:"2"};
 	next();
 },
 genHandler = function(email,cb,subject,path) {

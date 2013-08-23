@@ -63,6 +63,11 @@ Where:
 * `data`: the data to update the user as an object, e.g.: `{activation_code: "asqefcehe78qa"}`
 * `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
+What properties will it add to the user object in `save()`?
+
+1. activation: When a new activation is created, it will save a random string to `activation_code`. For example: `user.save("256",{activation_code:"ABT678HB"})`. When activation is complete, it will set the code to "X".
+2. password reset: When a new password reset is created, it will save a random string to `password_reset_code` and an integer representing the expiry at `password_reset_time`. For examle, `user.save("256",{password_reset_code:"ABT678YY",password_reset_time:1377151862978})`. When password reset is complete, it will set the code to "X" and the time to 0.
+
 ##### url
 URL string of how activator should send mail. Structured as follows:
 
@@ -95,9 +100,23 @@ Activation is simple, just add the route handler *after* you have created the us
 app.post("/users",createUser,activator.createActivate);
 ````
 
-activator assumes that the new user ID will be on the request in `req.userid` or `req.user.id`. If one of those is not available, it will send a `500` error.
+`activator.createActivate` needs access to several pieces of data in order to do its job:
 
-When done, activator will send a `201` response code and a response body whose text content is the URL to be used to activate.
+* `id`: It needs the ID of the user, so that it can call `user.save(id,data)`
+* `response.body`: Since `createUser` (in the above example) or anything you have done to create a user might actually want to send data back, `createActivate()` needs to be able to know what the body you want to send is, when it is successful and calls `res.send(201,data);`
+
+`createActivate()` will look for these properties on `req.activator`. 
+
+````JavaScript
+req.activator = {
+	id: "12345tg", // the user ID to pass to createActivate()
+	body: "A message" // the body to send back along with the successful 201
+}
+````
+
+If `createActivate()` cannot find `req.activator.id` or `req.user.id`, it will send a `500` error.
+
+When done, activator will send a `201` response code and a response body as passed in `req.activator.body`.
 
 #### Complete an activation
 Once the user actually clicks on the link, you need to complete the activation:
