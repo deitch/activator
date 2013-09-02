@@ -20,6 +20,16 @@
     "smtp-tester": "~0.4.8",
     "should": "~1.2.2"
   },
+	"keywords": [
+		"express",
+		"email",
+		"sms",
+		"activation",
+		"nodejs",
+		"node",
+		"confirmation",
+		"two-step"
+	],
   "scripts": {
     "test": "node_modules/.bin/mocha"
   },
