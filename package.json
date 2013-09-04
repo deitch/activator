@@ -1,7 +1,7 @@
 {
   "name": "activator",
   "description": "simple user activation and password reset for nodejs",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "url": "http://github.com/deitch/activator",
   "author": "Avi Deitcher <avi@deitcher.net>",
   "engines": [
