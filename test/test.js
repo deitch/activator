@@ -10,12 +10,12 @@ USERS = {
 },
 users,
 userModel = {
-	find: function (login,cb) {
+	_find: function (login,cb) {
 		var found = null;
 		if (!login) {
 			cb("nologin");
 		} else if (users[login]) {
-			cb(null,users[login]);
+			cb(null,_.cloneDeep(users[login]));
 		} else {
 			_.each(users,function (val) {
 				if (val && val.email === login) {
@@ -23,8 +23,11 @@ userModel = {
 					return(false);
 				}
 			});
-			cb(null,found);
+			cb(null,_.cloneDeep(found));
 		}
+	},
+	find: function() {
+		this._find.apply(this,arguments);
 	},
 	save: function (id,model,cb) {
 		if (id && users[id]) {
@@ -41,6 +44,16 @@ reset = function () {
 		mail.removeAll();
 	}
 },
+userModelEmail = _.extend({},userModel,{find: function (login,cb) {
+	this._find(login,function (err,res) {
+		if (res && res.email) {
+			res.funny = res.email;
+			delete res.email;
+		}
+		cb(err,res);
+	});
+	}
+}),
 MAILPORT = 30111,
 url = "smtp://localhost:"+MAILPORT+"/gopickup.net/"+escape("GoPickup Test <test@gopickup.net>"),
 createUser = function (req,res,next) {
@@ -205,6 +218,38 @@ describe('activator', function(){
 				],done);
 			});
 			it('should succeed for known email', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+		});
+		describe('with email property override', function(){
+			before(function(){
+			  activator.init({user:userModelEmail,emailProperty:"funny",url:url,templates:templates});
+			});		  
+			it('activate should succeed for known user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					}
+				],done);
+			});
+			it('password reset should succeed for known email', function(done){
 				var email = users["1"].email, handler;
 				async.waterfall([
 					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},

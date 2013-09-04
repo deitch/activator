@@ -39,6 +39,7 @@ In order for activator to work, it needs to be able to read your user instances 
 The `config` object passed to `activator.init()` **must** contain the following keys:
 
 * `user`: object that allows activator to find and save a user object. See below.
+* `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email".
 * `url`: string that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
 
@@ -51,7 +52,7 @@ The user object needs to have two methods, with the following signatures:
 Where:
 
 * `login`: string with which the user logs in. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it.
-* `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` **must** be `null` (not `undefined`). If an object is found, then `data` **must** be a single JavaScript object.
+* `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` **must** be `null` (not `undefined`). If an object is found, then `data` **must** be a single JavaScript object, and the object **must** have a property containing the email address. By default, it is named `email`, but you can override it with `config.emailProperty`.
 
 activator also needs to be able to save a user:
 
