@@ -86,6 +86,30 @@ URL string of how activator should send mail. Structured as follows:
 The directory where you keep text files that serve as mail templates. See below under the section templates.
 
 
+### Responses and Your Handlers
+All of the middleware available in activator can function in one of two modes:
+
+1. Send responses - this is usually used by Ajax, e.g. `res.send(200,"success")` or `res.send(401,"invalidcode")`
+2. Pass responses - pass the responses on to your middleware, where you can do what you wish
+
+
+Here are two examples, one of each:
+
+````JavaScript
+app.post("/users",createUser,activator.createActivate);		// will send the success/error directly
+app.post("/users",createUser,activator.createActivateNext,handler);		// will call next() when done
+````
+
+When the middleware is done, if it ends in "Next", it will store the results in a `req.activator` object and then call `next()`.
+
+````JavaScript
+req.activator = {
+	code: 500,								// or 401 or 400 or 201 or 200 or ....
+	message: "uninitialized"	// of null/undefined, or "invalidcode" or ....
+}
+````
+
+
 ### Activation
 Activation is the two-step process wherein a user first *creates* their account and *then* confirms (or activates) it by clicking on a link in an email or entering a short code via SMS/iMessage/etc.
 
@@ -98,7 +122,8 @@ activator does **not** create the user; it leaves that up to you, since everyone
 Activation is simple, just add the route handler *after* you have created the user:
 
 ````JavaScript
-app.post("/users",createUser,activator.createActivate);
+app.post("/users",createUser,activator.createActivate); 								// direct send() mode
+app.post("/users",createUser,activator.createActivateNext,handler); 		// save results in req.activator and call next() mode
 ````
 
 `activator.createActivate` needs access to several pieces of data in order to do its job:
@@ -115,15 +140,15 @@ req.activator = {
 }
 ````
 
-If `createActivate()` cannot find `req.activator.id` or `req.user.id`, it will send a `500` error.
+If `createActivate()` or `createActivateNext()` cannot find `req.activator.id` or `req.user.id`, it will incur a `500` error.
 
-When done, activator will send a `201` response code and a response body as passed in `req.activator.body`.
 
 #### Complete an activation
 Once the user actually clicks on the link, you need to complete the activation:
 
 ````JavaScript
-app.put("/users/:user/activation",activator.completeActivate);
+app.put("/users/:user/activation",activator.completeActivate);								// direct res.send() mode
+app.put("/users/:user/activation",activator.completeActivateNext,handler);		// save results and call next() mode
 ````
 
 activator will return a `200` if successful, a `400` if there is an error, along with error information, and a `404` if it cannot find that user.
@@ -142,10 +167,11 @@ Password reset is a two-step process in which the user requests a password reset
 Creating a password reset is simple, just add the route handler:
 
 ````JavaScript
-app.post("/passwordreset",activator.createPasswordReset);
+app.post("/passwordreset",activator.createPasswordReset);							// direct res.send() mode
+app.post("/passwordreset",activator.createPasswordResetNext,handler);	// save data and call next() mode
 ````
 
-When done, activator will send a `201` response code and a response body whose text content is the URL to be used to reset the password.
+When done, activator will return a `201` code and a message whose text content is the URL to be used to reset the password.
 
 Activator assumes that the login/email/ID to search for will be in `req.param("user")`.
 
@@ -153,7 +179,8 @@ Activator assumes that the login/email/ID to search for will be in `req.param("u
 Once the user actually clicks on the link, you need to complete the password reset:
 
 ````JavaScript
-app.put("/users/:user/passwordreset",activator.completePasswordReset);
+app.put("/users/:user/passwordreset",activator.completePasswordReset);								// direct res.send() mode
+app.put("/users/:user/passwordreset",activator.completePasswordResetNext,handler);		// save response and call next() mode
 ````
 
 activator will return a `200` if successful, a `400` if there is an error, along with error information, and a `404` if it cannot find that user.
