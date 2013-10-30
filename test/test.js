@@ -393,5 +393,37 @@ describe('activator', function(){
 				],done);
 			});
 		});
+		describe('with id property override', function(){
+			before(function(){
+			  activator.init({user:userModel,url:url,templates:templates,id:'id'});
+			});
+			it('activate should succeed for known user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').type('json').send({email:"foo@bar.com"}).expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+email+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					}
+				],done);
+			});
+			it('password reset should succeed for known email', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+email).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+		});
 	});
 });

@@ -43,6 +43,10 @@ The `config` object passed to `activator.init()` **must** contain the following 
 * `url`: string that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
 
+Optionally, config can also contain:
+
+* `id`: the property that contains the ID in a user when it is found using `find`. See below for `user.save()`
+
 
 ##### user
 The user object needs to have two methods, with the following signatures:
@@ -60,7 +64,7 @@ activator also needs to be able to save a user:
 
 Where:
 
-* `id`: ID of the user to save
+* `id`: ID of the user to save. 
 * `data`: the data to update the user as an object, e.g.: `{activation_code: "asqefcehe78qa"}`
 * `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
@@ -68,6 +72,13 @@ What properties will it add to the user object in `save()`?
 
 1. activation: When a new activation is created, it will save a random string to `activation_code`. For example: `user.save("256",{activation_code:"ABT678HB"})`. When activation is complete, it will set the code to "X".
 2. password reset: When a new password reset is created, it will save a random string to `password_reset_code` and an integer representing the expiry at `password_reset_time`. For examle, `user.save("256",{password_reset_code:"ABT678YY",password_reset_time:1377151862978})`. When password reset is complete, it will set the code to "X" and the time to 0.
+
+What ID does it use to save the user?
+
+* If you passed an `id` parameter to `activator.init(config)`, then it is that property of the user. For example, `activator.init({id:'uid'})` means that when activator does `user.find('me@email.com')` and the returned object contains `{uid:12345}`, then activator will save as `user.save(12345,{activation_code:"ABFHWD"})`
+* If you did not pass an `id` parameter, then it is the exact same search term as used in `user.find()`. else it is the search term used as `login` in `user.find(login)`. For example, if activator does `user.find('12bc5')` then it will also do `user.save('12bc5')`.
+
+
 
 ##### url
 URL string of how activator should send mail. Structured as follows:
