@@ -83,7 +83,7 @@ What ID does it use to save the user?
 ##### url
 URL string of how activator should send mail. Structured as follows:
 
-    protocol://user:pass@hostname:port/domain/sender
+    protocol://user:pass@hostname:port/domain/sender?secureConnection=true
 		
 * `protocol`: normally "smtp", can be "smtps"
 * `user`: the user with which to login to the SMTP server, if authentication is required.
@@ -92,6 +92,7 @@ URL string of how activator should send mail. Structured as follows:
 * `port`: the port to use.
 * `domain`: the domain from which the mail is sent, when the mail server is first connected to.
 * `sender`: the email to use as the sender or "from" of the emails sent. Can be in the format `name@domain.com` or `My Name <name@domain.com>`. Should always be URL-encoded (or else you'll never get it into a URL!)
+* `secureConnection`: the use of SSL can be guided by the query parameter "secureConnection=true".
 
 ##### templates
 The directory where you keep text files that serve as mail templates. See below under the section templates.
