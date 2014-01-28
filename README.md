@@ -20,6 +20,77 @@ Example:
 		app.put("/passwordreset/:user",activator.completePasswordReset);
 
 
+## Purpose
+Most interaction between users and your Web-driven service take place directly between the user and the server: log in, send a message, join a group, post an update, close a deal, etc. The user logs in by entering a username and password, and succeeds (or doesn't); the user enters a message and clicks "post"; etc.
+
+There are a few key interactions - actually, mainly just two - that take place using side channels and with delays:
+
+* New user creation & activation
+* Password reset
+
+In both of these cases, the user does something directly on the Web (or via your mobile app or API), then something happens "on the side", usually via email or SMS: a confirmation email is sent; a password reset token is texted; etc.
+
+This process is quite burdensome to build into your app, since it breaks the usual "request-response" paradigm.
+
+*Activator* is here to make this process easier.
+
+## Process
+### Activator Services
+Activator provides express middleware that to perform user activation - create and complete - and password reset - create and complete. It handles one-time link creation, link expiry, validation and all the other parts necessary to make user activation and password reset turnkey.
+
+*activator* also does not tell you what the email you send out should look like; you just provide a template, and activator fills it in. 
+
+Here are activator's steps in detail.
+
+### User Activation
+For user creation, the steps are normally as follows:
+
+1. User creates a new account on your Web site / app
+2. System creates an "activation email" that contains a one-time link and sends it to the registered email
+3. User clicks on the link, thus validating the email address
+
+Most sites call steps 2-3 "user activation". Activator calls step 2 "create an activation" and step 3 "complete an activation".
+
+When you use activator, the steps are as follows:
+
+1. User creates a new account on your Web site / app
+2. You include `activator.createActivate()` as part of the creation middleware
+3. *activator* takes the user email address from the new user account, a template from the templates directory set on initialization, and the URL from initialization, creates a one-time activation key, composes an email and sends it.
+4. The user receives the email and clicks on the link
+5. You included `activator.completeActivate()` as the express middleware handler for the path in the URL
+6. *activator* checks the one-time activation key and other information against the user account, marks the account as activated
+
+
+### Password Reset
+For password reset, the steps are normally as follows:
+
+1. User clicks "forgot password" on your Web site / app
+2. System creates a "password reset email" that contains a one-time link and sends it to the registered email for the account
+3. User clocks on the link, allowing them the opportunity to set a new password
+
+Activator calls step 2 "create a password reset" and step 3 "complete a password reset"
+
+When you use activator, the steps are as follows:
+
+1. User selects "reset password" on your Web site / app
+2. You include `activator.createPasswordReset()` as the express middleware handler for the path
+3. *activator* takes the user email address from the user account, a template from the templates directory set on initialization, and the URL from initialization, creates a one-time password reset key, composes an email and sends it.
+4. The user receives the email and clicks on the link
+5. You included `activator.completePasswordReset()` as the express middleware handler for the path in the URL
+6. *activator* checks the one-time password reset key and other information against the user account, and then allows the user to reset the password
+
+
+
+### How To Use It
+To user *activator*, you select the routes you wish to use - activator does not impose any special routes - and use activator as middleware. Of course, you will need to tell activator how to do several things, like:
+
+* How to find a user, so it can check for the user
+* How to update a user, so it can mark the user as being activated, or that it has a temporary password reset key
+* Where to find the templates to use for activation and password reset emails
+* What URL the user should be using to activate or reset a password. The URL is included in the email, since the user clicks on a link.
+
+All of these are described in greater detail below.
+
 
 ## Installation
 Installation is simple, just install the npm module:
