@@ -315,7 +315,7 @@ So if your password reset page is on the same host and protocol as the request t
 		
 		You have asked to reset your password for MySite. To reset your password, please click on the following link:
 		
-		<%= request.protocol %><%= req.headers.host %>/reset/my/password?code=<%= code %>&user=<%= id %>
+		<%= request.protocol %><%= request.headers.host %>/reset/my/password?code=<%= code %>&user=<%= id %>
 		
 		Or just copy and paste that link and enter your code as <%= code %>.
 		
