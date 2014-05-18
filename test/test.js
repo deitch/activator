@@ -3,12 +3,24 @@
 
 var request = require('supertest'), should = require('should'), express = require('express'), 
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
-r = request(app), mail,
+r = request(app), mail, fs = require('fs'),
 activator = require('../lib/activator'), templates = __dirname+'/resources',
 USERS = {
 	"1": {id:"1",email:"me@you.com",password:"1234"}
 },
 users,
+quote = function (regex) {
+	/*jslint regexp:true */
+  var ret = regex.replace(/([()[{*+.$^\\/\\|?])/g, '\\$1');
+	/*jslint regexp:false */
+	return(ret);
+},
+bodyMatcher = function (body,matcher) {
+	/*jslint regexp:true */
+	var ret = body.replace(/[\r\n]+/g,'').match(new RegExp(quote(matcher.replace(/[\r\n]+/g,'')).replace(/<%=[^%]+%>/g,'.*')));
+	/*jslint regexp:false */
+	return(ret);
+},
 userModel = {
 	_find: function (login,cb) {
 		var found = null;
@@ -57,34 +69,65 @@ userModelEmail = _.extend({},userModel,{find: function (login,cb) {
 MAILPORT = 30111,
 url = "smtp://localhost:"+MAILPORT+"/gopickup.net/"+escape("GoPickup Test <test@gopickup.net>"),
 createUser = function (req,res,next) {
-	users["2"] = {id:"2",email:"you@me.com",password:"5678"};
+	users["2"] = {id:"2",email:"you@foo.com",password:"5678"};
 	req.activator = {id:"2",body:"2"};
 	next();
 },
-genHandler = function(email,cb,subject,path) {
+splitTemplate = function (path) {
+	/*jslint stupid:true */
+	var content = fs.readFileSync(path,'utf8');
+	/*jslint stupid:false */
+	content = content.match(/^([^\n]*)\n[^\n]*\n((.|\n)*)/m);
+	return(content);
+},
+genHandler = function(email,subject,path,data,cb) {
+	if (!cb) {
+		cb = data;
+		data = null;
+	}
 	return function(rcpt,msgid,content) {
 		var url, ret, re = new RegExp('http:\\/\\/\\S*'+path.replace(/\//g,'\\/')+'\\?code=([^\\s\\&]+)\\&email=(\\S+)\\&user=([^\\s\\&]+)');
 		rcpt.should.eql(email);
 		// check for the correct Subject in the email
 		should.exist(content.data);
-		content.headers.Subject.should.eql(subject);
-		should.exist(content.body);
-		/*jslint regexp:true */
-		url = content.body.match(re);
-		/*jslint regexp:false */
-		should.exist(url);
-		// check that code and email match what is in database
-		url.length.should.eql(4);
-		ret = _.object(["path","code","email","user"],url);
-		ret.email.should.eql(email);
+		content.headers.subject.should.eql(subject);
+		// do we have actual content to test? if so, we should ignore templates, because we do not have the request stuff
+		if (data && data.text) {
+			should.exist(content.text);
+			should.exist(bodyMatcher(content.text,data.text));
+			url = content.text.match(re);
+			should.exist(url);
+			// check that code and email match what is in database
+			url.length.should.eql(4);
+			ret = _.object(["path","code","email","user"],url);
+			ret.email.should.eql(email);
+		}
+		if (data && data.html) {
+			should.exist(content.html);
+			should.exist(bodyMatcher(content.html,data.html));
+			url = content.html.match(re);
+			should.exist(url);
+			// check that code and email match what is in database
+			url.length.should.eql(4);
+			ret = _.object(["path","code","email","user"],url);
+			ret.email.should.eql(email);
+		}
+		if (!ret) {
+			url = (content.text||content.html).match(re);
+			should.exist(url);
+			// check that code and email match what is in database
+			url.length.should.eql(4);
+			ret = _.object(["path","code","email","user"],url);
+			ret.email.should.eql(email);
+		}
 		cb(null,ret);
 	};
 },
-aHandler = function (email,cb) {
-	return genHandler(email,cb,"Activate Email","/activate/my/account");
+aHandler = function (email,data,cb) {
+	return genHandler(email,"Activate Email","/activate/my/account",data,cb);
 },
-rHandler = function(email,cb) {
-	return genHandler(email,cb,"Password Reset Email","/reset/my/password");
+rHandler = function(email,data,cb) {
+	return genHandler(email,"Password Reset Email","/reset/my/password",data,cb);
 },
 createActivateHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
@@ -169,7 +212,7 @@ describe('activator', function(){
 			it('should fail for known user but bad code', function(done){
 				var email, handler;
 				async.waterfall([
-					function (cb) {r.post('/users').expect(201,cb);},
+					function (cb) {r.post('/users').expect(201,"2",cb);},
 					function (res,cb) {
 						email = users["2"].email;
 						handler = aHandler(email,cb);
@@ -177,7 +220,7 @@ describe('activator', function(){
 					},
 					function (res,cb) {
 						mail.unbind(email,handler);
-						r.put('/users/'+res.user+'/activate').type("json").send({code:"asasqsqsqs"}).expect(400,cb);
+						r.put('/users/'+res.user+'/activate').type("json").send({code:"asasqsqsqs"}).expect(400,'invalidcode',cb);
 					}
 				],done);
 			});
@@ -421,6 +464,45 @@ describe('activator', function(){
 					function (res,cb) {
 						mail.unbind(email,handler);
 						r.put('/passwordreset/'+email).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+		});
+		describe('with html emails', function(){
+			var atemplate, htemplate, prtemplate, templatesPath;
+			before(function(){
+				templatesPath = templates+'/html';
+			  activator.init({user:userModel,url:url,templates:templatesPath});
+				/*jslint stupid:true */
+				atemplate = splitTemplate(templatesPath+'/activate.txt');
+				htemplate = splitTemplate(templatesPath+'/activate.html');
+				prtemplate = splitTemplate(templatesPath+'/passwordreset.html');
+				/*jslint stupid:false */
+			});
+			it('activate should send txt and html', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect(201,"2",cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,{text:atemplate[2],html:htemplate[2]},cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						cb();
+					}
+				],done);
+			});
+			it('password reset should send only html', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/1').type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
 					}
 				],done);
 			});
