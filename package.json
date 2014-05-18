@@ -17,7 +17,7 @@
     "express": "3.x",
     "mocha": "1.x",
     "supertest": "0.x",
-    "smtp-tester": "~0.4.8",
+    "smtp-tester": "~0.5.0",
     "should": "~1.2.2"
   },
 	"keywords": [
