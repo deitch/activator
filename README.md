@@ -332,6 +332,9 @@ So if your password reset page is on the same host and protocol as the request t
 
 Internationalization support is just around the corner...
 
+## Example
+An example - just a simplified and stripped down version of the tests - is available in `./example.js`. It can be run via `node ./example.js`
+
 ## Testing
 To run the tests, from the root directory, run `npm test`.
 
