@@ -1,5 +1,6 @@
 /*jslint node:true, nomen:true, debug:true */
-/*global should, describe, before, beforeEach, it, escape */
+/*jshint unused:vars */
+/*global describe, before, beforeEach, it, escape */
 
 var request = require('supertest'), should = require('should'), express = require('express'), 
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
@@ -161,7 +162,7 @@ before(function(){
 
 describe('activator', function(){
 	before(function(){
-	  mail = smtp.init(MAILPORT,{disableDNSValidation:true});
+	  mail = smtp.init(MAILPORT,{disableDNSValidation:true,disableSTARTTLS:true});
 		app.use(express.bodyParser());
 		app.use(app.router);
 		app.post('/usersbad',activator.createActivate);
