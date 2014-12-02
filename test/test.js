@@ -161,7 +161,7 @@ before(function(){
 
 describe('activator', function(){
 	before(function(){
-	  mail = smtp.init(MAILPORT);		
+	  mail = smtp.init(MAILPORT,{disableDNSValidation:true});
 		app.use(express.bodyParser());
 		app.use(app.router);
 		app.post('/usersbad',activator.createActivate);
