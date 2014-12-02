@@ -7,7 +7,7 @@ Example:
     
     var express = require('express'), app = express(), activator = require('activator');
 		
-		activator.init({user:userModel,url:URL,templates:mailTemplatesDir});
+		activator.init({user:userModel,transport:smtpURL,from:"activator@github.com",templates:mailTemplatesDir});
 		
 		app.user(app.router);
 		
@@ -87,7 +87,7 @@ To user *activator*, you select the routes you wish to use - activator does not 
 * How to find a user, so it can check for the user
 * How to update a user, so it can mark the user as being activated, or that it has a temporary password reset key
 * Where to find the templates to use for activation and password reset emails
-* What URL the user should be using to activate or reset a password. The URL is included in the email, since the user clicks on a link.
+* What URL the user should be using to activate or reset a password. The URL is included in the email, since the user normally clicks on a link.
 
 All of these are described in greater detail below.
 
@@ -111,8 +111,9 @@ The `config` object passed to `activator.init()` **must** contain the following 
 
 * `user`: object that allows activator to find and save a user object. See below.
 * `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email".
-* `url`: string that describes how we will send email. See below.
+* `transport`: string or pre-configured nodemailer transport that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
+* `from`: string representing the sender for all messages
 
 Optionally, config can also contain:
 
@@ -156,10 +157,13 @@ What ID does it use to save the user?
 
 
 
-##### url
-URL string of how activator should send mail. Structured as follows:
+##### transport
+There are 2 ways activator can send email: SMTP (default) or a passed-in transport.
 
-    protocol://user:pass@hostname:port/domain/sender?secureConnection=true
+###### SMTP
+If you are using SMTP - which is the default - all you need to pass in is a string describing how activator should connect with your mail server. It is structured as follows:
+
+    protocol://user:pass@hostname:port/domain?secureConnection=true
 		
 * `protocol`: normally "smtp", can be "smtps"
 * `user`: the user with which to login to the SMTP server, if authentication is required.
@@ -167,8 +171,44 @@ URL string of how activator should send mail. Structured as follows:
 * `hostname`: the hostname of the server, e.g. "smtp.gmail.com".
 * `port`: the port to use.
 * `domain`: the domain from which the mail is sent, when the mail server is first connected to.
-* `sender`: the email to use as the sender or "from" of the emails sent. Can be in the format `name@domain.com` or `My Name <name@domain.com>`. Should always be URL-encoded (or else you'll never get it into a URL!)
 * `secureConnection`: the use of SSL can be guided by the query parameter "secureConnection=true".
+
+###### Other
+If you prefer a different service - or you want to override the SMTP configuration - then instead of passing a URL string to transport, you can pass in a preconfigured nodemailer transport object. Since activator uses nodemailer under the covers, the transport is a pass-through.
+
+And, yes, you can even use the nodemailer SMTP transport instead of a URL string, if you prefer. Once activator receives a configured transport object, rather than a string, it doesn't care what it is as long as it works.
+
+How would you do it? Well, SMTP would normally look like this:
+
+    activator.init({transport:"smtp://user:pass@mysmtp.com/me.com"});
+		
+Or similar. 
+
+To use a pre-configured transport, you need to:
+
+1. Include the transport module
+2. Configure the transport
+3. Initialize activator with the transport
+
+Here is an SMTP example:
+
+    var smtpTransport = require('nodemailer-smtp-transport');
+		var transport = smtpTransport(options);
+		activator.init({transport:transport});
+		
+Of course, because the 'nodemailer-smtp-transport' is the default in nodemailer, the above example is **identical** to just passing in a URL string, but you can work whichever way works for you.
+
+Here is an Amazon Simple Email Service (SES) example:
+
+    var sesTransport = require('nodemailer-ses-transport');
+		var transport = sesTransport(options);
+		activator.init({transport:transport});
+		
+In all cases, it is up to *you* to set the `options` to create the transport.
+
+And if all you know (or want to know) is SMTP, then just use the default SMTP connection with a URL string.
+
+For details aboute nodemailer's transports, see the nodemailer transports at http://www.nodemailer.com/#available-transports
 
 ##### templates
 The directory where you keep text files that serve as mail templates. See below under the section templates.

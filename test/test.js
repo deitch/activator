@@ -1,6 +1,6 @@
 /*jslint node:true, nomen:true, debug:true */
 /*jshint unused:vars */
-/*global describe, before, beforeEach, it, escape */
+/*global describe, before, beforeEach, it */
 
 var request = require('supertest'), should = require('should'), express = require('express'), 
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
@@ -68,7 +68,8 @@ userModelEmail = _.extend({},userModel,{find: function (login,cb) {
 	}
 }),
 MAILPORT = 30111,
-url = "smtp://localhost:"+MAILPORT+"/gopickup.net/"+escape("GoPickup Test <test@gopickup.net>"),
+url = "smtp://localhost:"+MAILPORT+"/gopickup.net",
+from = "test@gopickup.net",
 createUser = function (req,res,next) {
 	users["2"] = {id:"2",email:"you@foo.com",password:"5678"};
 	req.activator = {id:"2",body:"2"};
@@ -203,7 +204,7 @@ describe('activator', function(){
 	});
 	describe('initialized', function(){
 		before(function(){
-		  activator.init({user:userModel,url:url,templates:templates});
+		  activator.init({user:userModel,transport:url,templates:templates,from:from});
 		});
 		beforeEach(reset);
 	  describe('activate', function(){
@@ -407,7 +408,7 @@ describe('activator', function(){
 		});
 		describe('with email property override', function(){
 			before(function(){
-			  activator.init({user:userModelEmail,emailProperty:"funny",url:url,templates:templates});
+			  activator.init({user:userModelEmail,emailProperty:"funny",transport:url,templates:templates,from:from});
 			});		  
 			it('activate should succeed for known user', function(done){
 				var email, handler;
@@ -439,7 +440,7 @@ describe('activator', function(){
 		});
 		describe('with id property override', function(){
 			before(function(){
-			  activator.init({user:userModel,url:url,templates:templates,id:'id'});
+			  activator.init({user:userModel,transport:url,templates:templates,id:'id',from:from});
 			});
 			it('activate should succeed for known user', function(done){
 				var email, handler;
@@ -473,7 +474,7 @@ describe('activator', function(){
 			var atemplate, htemplate, prtemplate, templatesPath;
 			before(function(){
 				templatesPath = templates+'/html';
-			  activator.init({user:userModel,url:url,templates:templatesPath});
+			  activator.init({user:userModel,transport:url,templates:templatesPath,from:from});
 				/*jslint stupid:true */
 				atemplate = splitTemplate(templatesPath+'/activate.txt');
 				htemplate = splitTemplate(templatesPath+'/activate.html');
