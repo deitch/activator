@@ -192,16 +192,16 @@ To use a pre-configured transport, you need to:
 
 Here is an SMTP example:
 
-    var smtpTransport = require('nodemailer-smtp-transport');
-		var transport = smtpTransport(options);
+    var smtpTransport = require('nodemailer-smtp-transport'), mailer = require('nodemailer');
+		var transport = mailer.createTransport(smtpTransport(options));
 		activator.init({transport:transport});
 		
 Of course, because the 'nodemailer-smtp-transport' is the default in nodemailer, the above example is **identical** to just passing in a URL string, but you can work whichever way works for you.
 
 Here is an Amazon Simple Email Service (SES) example:
 
-    var sesTransport = require('nodemailer-ses-transport');
-		var transport = sesTransport(options);
+    var sesTransport = require('nodemailer-ses-transport'), mailer = require('nodemailer');
+		var transport = mailer.createTransport(sesTransport(options));
 		activator.init({transport:transport});
 		
 In all cases, it is up to *you* to set the `options` to create the transport.
