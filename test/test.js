@@ -9,7 +9,7 @@ activator = require('../lib/activator'), templates = __dirname+'/resources',
 mailer = require('nodemailer'),
 USERS = {
 	"1": {id:"1",email:"me@you.com",password:"1234"}
-},
+}, lang,
 users,
 quote = function (regex) {
 	/*jslint regexp:true */
@@ -69,9 +69,9 @@ userModelEmail = _.extend({},userModel,{find: function (login,cb) {
 	}
 }),
 MAILPORT = 30111,
-url = "smtp://localhost:"+MAILPORT+"/gopickup.net",
-maileropts = { host: "localhost", port:MAILPORT, name: "gopickup.net", secureConnection: false },
-from = "test@gopickup.net",
+url = "smtp://localhost:"+MAILPORT+"/activator.net",
+maileropts = { host: "localhost", port:MAILPORT, name: "activator.net", secureConnection: false },
+from = "test@activator.net",
 createUser = function (req,res,next) {
 	users["2"] = {id:"2",email:"you@foo.com",password:"5678"};
 	req.activator = {id:"2",body:"2"};
@@ -84,19 +84,16 @@ splitTemplate = function (path) {
 	content = content.match(/^([^\n]*)\n[^\n]*\n((.|\n)*)/m);
 	return(content);
 },
-genHandler = function(email,subject,path,data,cb) {
-	if (!cb) {
-		cb = data;
-		data = null;
-	}
+genHandler = function(email,path,data,cb) {
 	return function(rcpt,msgid,content) {
-		var url, ret, re = new RegExp('http:\\/\\/\\S*'+path.replace(/\//g,'\\/')+'\\?code=([^\\s\\&]+)\\&email=(\\S+)\\&user=([^\\s\\&]+)');
+		var url, ret, re = new RegExp('http:\\/\\/\\S*'+path.replace(/\//g,'\\/')+'\\?code=([^\\s\\&]+)\\&email=(\\S+)\\&user=([^\\s\\&]+)'),
+			subject = data.subject;
 		rcpt.should.eql(email);
 		// check for the correct Subject in the email
 		should.exist(content.data);
 		content.headers.subject.should.eql(subject);
 		// do we have actual content to test? if so, we should ignore templates, because we do not have the request stuff
-		if (data && data.text) {
+		if (data.text) {
 			should.exist(content.text);
 			should.exist(bodyMatcher(content.text,data.text));
 			url = content.text.match(re);
@@ -106,7 +103,7 @@ genHandler = function(email,subject,path,data,cb) {
 			ret = _.object(["path","code","email","user"],url);
 			ret.email.should.eql(email);
 		}
-		if (data && data.html) {
+		if (data.html) {
 			should.exist(content.html);
 			should.exist(bodyMatcher(content.html,data.html));
 			url = content.html.match(re);
@@ -128,10 +125,22 @@ genHandler = function(email,subject,path,data,cb) {
 	};
 },
 aHandler = function (email,data,cb) {
-	return genHandler(email,"Activate Email","/activate/my/account",data,cb);
+	if (!cb) {
+		cb = data;
+		data = {};
+	}
+	// set up the default subject
+	data.subject = data.subject || "Activate Email";
+	return genHandler(email,"/activate/my/account",data,cb);
 },
 rHandler = function(email,data,cb) {
-	return genHandler(email,"Password Reset Email","/reset/my/password",data,cb);
+	if (!cb) {
+		cb = data;
+		data = {};
+	}
+	// set up the default subject
+	data.subject = data.subject || "Password Reset Email";
+	return genHandler(email,"/reset/my/password",data,cb);
 },
 createActivateHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
@@ -152,7 +161,14 @@ completeResetHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","completeResetHandler");
 	res.send(req.activator.code,req.activator.message);
-}, allTests;
+}, 
+setLang = function (req,res,next) {
+	if (lang) {
+		req.lang = lang;
+	}
+	next();
+},
+allTests;
 
 
 before(function(){
@@ -467,12 +483,87 @@ allTests = function () {
 			],done);
 		});
 	});
+
+
+	describe('localized', function(){
+		var parts, templatesPath;
+		before(function(){
+			templatesPath = templates+'/locale';
+		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from});
+			/*jslint stupid:true */
+			parts = {
+				txt: {
+					en_GB : splitTemplate(templatesPath+'/activate_en_GB.txt'),
+					fr : splitTemplate(templatesPath+'/activate_fr.txt'),
+					fallback : splitTemplate(templatesPath+'/activate.txt')
+				},
+				html: {
+					en_GB : splitTemplate(templatesPath+'/activate_en_GB.html'),
+					fr : splitTemplate(templatesPath+'/activate_fr.html'),
+					fallback : splitTemplate(templatesPath+'/activate.html')
+				}
+			};
+			/*jslint stupid:false */
+		});
+		it('activate should send txt and html for exact match', function(done){
+			var email, handler;
+			lang = 'en_GB';
+			async.waterfall([
+				function (cb) {r.post('/usersnext').expect(201,"2",cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,{subject:parts.txt.en_GB[1],text:parts.txt.en_GB[2],html:parts.html.en_GB[2]},cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					cb();
+				}
+			],done);
+		});
+		it('activate should send txt and html fallback to lang', function(done){
+			var email, handler;
+			lang = 'fr_FR';
+			async.waterfall([
+				function (cb) {r.post('/usersnext').expect(201,"2",cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,{subject:parts.txt.fr[1],text:parts.txt.fr[2],html:parts.html.fr[2]},cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					cb();
+				}
+			],done);
+		});
+		it('activate should send txt and html default for no match', function(done){
+			var email, handler;
+			lang = 'he_IL';
+			async.waterfall([
+				function (cb) {r.post('/usersnext').expect(201,"2",cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,{subject:parts.txt.fallback[1],text:parts.txt.fallback[2],html:parts.html.fallback[2]},cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					cb();
+				}
+			],done);
+		});
+	});
 };
 
 describe('activator', function(){
 	before(function(){
 	  mail = smtp.init(MAILPORT,{disableDNSValidation:true,disableSTARTTLS:true});
 		app.use(express.bodyParser());
+		app.use(setLang);
 		app.use(app.router);
 		app.post('/usersbad',activator.createActivate);
 		app.post('/users',createUser,activator.createActivate);

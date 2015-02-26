@@ -322,7 +322,7 @@ If it is successful resetting the password, it will return `200`, a `400` if the
 
 
 ### Templates
-In order to send an email (yes, we are thinking about SMS for the future). activator needs to have templates. The templates are simple text files that contain the text or HTML to send.
+In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. The templates are simple text files that contain the text or HTML to send.
 
 The templates should be in the directory passed to `activator.init()` as the option `templates`. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate" or "passwordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
 
@@ -369,8 +369,59 @@ So if your password reset page is on the same host and protocol as the request t
 
 
 
+#### HTML and text templates
+Template files can be either text or HTML. If activator finds html, it will send html email; if activator finds text, it will send text email; if it finds both, it will send both in an email.
 
-Internationalization support is just around the corner...
+How does it know which? Simple: **filename extension**.
+
+* `activate.html` - use this as an HTML template for activation
+* `passwordreset.html` - use this as an HTML template for password reset
+* `activate.txt` - use this as a text template for activation
+* `passwordreset.txt` - use this as a text template for password reset
+* `activate` - use this as a text template for activation
+* `passwordreset` - use this as a text template for password reset
+
+Notice that there are two options for text templates: no filename extenstion (e.g. `activate`) and text extension (e.g. `activate.txt`). How does it know which one to use when both are there? Simple:
+
+1. Use the filename without an extension. If it does not exist:
+2. Use the filename with the `.txt` extension.
+
+The content format of both kinds of templates (html and text) is the same as described above and have all of the same variables.
+
+
+#### Localized templates
+
+Activator supports localized templates. You can have one template for the locale `en_GB`, a separate one for `fr` and a third for `he_IL`. Just create the files with the correct name as an extension: filename type (e.g. `activate`), followed by `_` followed by the locale string (e.g. `en_GB` or `fr`) following by the optional filetype extension (nothing or `.txt` or `.html`).
+
+Here are some examples:
+
+* `activate_en_GB.txt` - text template for locale `en_GB`
+* `activate_en_GB` - text template for locale `en_GB`
+* `activate_en_GB.html` - html template for locale `en_GB`
+* `activate_fr.html` - html template for locale `fr`, will be used when the language is `fr` or `fr_`*anything* that is not matched
+* `activate` - fallback for all unmatched locales
+
+The search pattern is as follows.
+
+1. Look for an exact match of the locale, e.g. for `en_GB`, look for `activate_en_GB`
+2. Look for a language match, e.g. for `en_GB`, look for `activate_en`
+3. Look for a default file, e.g. for `en_GB`, look for `activate`
+
+How does it know which language to use? Simple, just set it on `req.lang`. You might have retrieved that from your user preferences, or from your application's default, or perhaps from the http header `Accept-Language`. Either way, you should set it in earlier middleware:
+
+````JavaScript
+		app.use(function(req,res,next){
+			req.lang = myLang; // Set your lang here
+		});
+		app.use(app.router);
+		app.post('/users',activator.createActivate); // etc.
+````
+
+
+
+
+
+
 
 ## Example
 An example - just a simplified and stripped down version of the tests - is available in `./example.js`. It can be run via `node ./example.js`

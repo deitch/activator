@@ -1,0 +1,7 @@
+Activate Email en Francais
+-------
+This is where everything goes for French activate. Please click on the following URL:
+
+<%= request.protocol %>://<%= request.headers.host %>/activate/my/account?code=<%= code %>&email=<%= email %>&user=<%= id %>
+
+Thanks!
