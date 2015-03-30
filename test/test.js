@@ -2,7 +2,7 @@
 /*jshint unused:vars */
 /*global describe, before, beforeEach, it */
 
-var request = require('supertest'), should = require('should'), express = require('express'), 
+var request = require('supertest'), should = require('should'), express = require('express'), bodyParser = require('body-parser'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 r = request(app), mail, fs = require('fs'),
 activator = require('../lib/activator'), templates = __dirname+'/resources',
@@ -145,22 +145,27 @@ rHandler = function(email,data,cb) {
 createActivateHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","createActivateHandler");
-	res.send(req.activator.code,req.activator.message);
+	res.status(req.activator.code).send(req.activator.message);
 },
 completeActivateHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","completeActivateHandler");
-	res.send(req.activator.code,req.activator.message);
+	res.status(req.activator.code).send(req.activator.message);
 },
 createResetHandler = function (req,res,next) {
+	var msg = req.activator.message;
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","createResetHandler");
-	res.send(req.activator.code,req.activator.message);
+	if (msg === null || msg === undefined || typeof(msg) === "number") {
+		res.sendStatus(req.activator.code);
+	} else {
+		res.status(req.activator.code).send(req.activator.message);
+	}
 },
 completeResetHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","completeResetHandler");
-	res.send(req.activator.code,req.activator.message);
+	res.status(req.activator.code).send(req.activator.message);
 }, 
 setLang = function (req,res,next) {
 	if (lang) {
@@ -562,9 +567,8 @@ allTests = function () {
 describe('activator', function(){
 	before(function(){
 	  mail = smtp.init(MAILPORT,{disableDNSValidation:true,disableSTARTTLS:true});
-		app.use(express.bodyParser());
+		app.use(bodyParser.json());
 		app.use(setLang);
-		app.use(app.router);
 		app.post('/usersbad',activator.createActivate);
 		app.post('/users',createUser,activator.createActivate);
 		app.post('/usersnext',createUser,activator.createActivateNext,createActivateHandler);

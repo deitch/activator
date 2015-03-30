@@ -19,6 +19,10 @@ Example:
 		app.post("/passwordreset",activator.createPasswordReset);
 		app.put("/passwordreset/:user",activator.completePasswordReset);
 
+## Versions
+Activator version >= 1.0.0 works **only** with express >=4.0.0
+
+Activator version <1.0.0 works **only** with express <4.0.0
 
 ## Purpose
 Most interaction between users and your Web-driven service take place directly between the user and the server: log in, send a message, join a group, post an update, close a deal, etc. The user logs in by entering a username and password, and succeeds (or doesn't); the user enters a message and clicks "post"; etc.
