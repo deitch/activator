@@ -70,7 +70,7 @@ For password reset, the steps are normally as follows:
 
 1. User clicks "forgot password" on your Web site / app
 2. System creates a "password reset email" that contains a one-time link and sends it to the registered email for the account
-3. User clocks on the link, allowing them the opportunity to set a new password
+3. User clicks on the link, allowing them the opportunity to set a new password
 
 Activator calls step 2 "create a password reset" and step 3 "complete a password reset"
 
