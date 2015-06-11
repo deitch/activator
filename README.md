@@ -385,7 +385,7 @@ How does it know which? Simple: **filename extension**.
 * `activate` - use this as a text template for activation
 * `passwordreset` - use this as a text template for password reset
 
-Notice that there are two options for text templates: no filename extenstion (e.g. `activate`) and text extension (e.g. `activate.txt`). How does it know which one to use when both are there? Simple:
+Notice that there are two options for text templates: no filename extension (e.g. `activate`) and text extension (e.g. `activate.txt`). How does it know which one to use when both are there? Simple:
 
 1. Use the filename without an extension. If it does not exist:
 2. Use the filename with the `.txt` extension.
