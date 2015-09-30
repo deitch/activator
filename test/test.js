@@ -121,6 +121,7 @@ genHandler = function(email,path,data,cb) {
 			ret = _.object(["path","code","email","user"],url);
 			ret.email.should.eql(email);
 		}
+		ret.content = content;
 		cb(null,ret);
 	};
 },
@@ -248,6 +249,8 @@ allTests = function () {
 				},
 				function (res,cb) {
 					mail.unbind(email,handler);
+					// check there is no attachment
+					should(res.content.attachments).undefined();
 					r.put('/usersnext/'+res.user+'/activate').type("json").send({code:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
 				}
 			],done);
@@ -369,6 +372,8 @@ allTests = function () {
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
+					// should have no attachments
+					should(res.content.attachments).undefined();
 					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
@@ -381,6 +386,78 @@ allTests = function () {
 				function (res,cb) {
 					mail.unbind(email,handler);
 					r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+				}
+			],done);
+		});
+	});
+	describe('with attachments', function(){
+		var attachments = {
+	  	activate: [
+        {   // utf-8 string as an attachment
+            filename: 'activate1.txt',
+            content: 'hello activate!'
+        },
+        {   // binary buffer as an attachment
+            filename: 'activate2.txt',
+            content: new Buffer('goodbye activate!','utf-8')
+        }
+			],
+			passwordreset: [
+        {   // utf-8 string as an attachment
+            filename: 'reset1.txt',
+            content: 'hello reset!'
+        },
+        {   // binary buffer as an attachment
+            filename: 'reset2.txt',
+            content: new Buffer('goodbye reset!','utf-8')
+        }
+			]
+	  };
+		before(function(){
+		  activator.init({user:userModel,transport:url,templates:templates,from:from,attachments:attachments});
+		});
+		it('should include correct attachment for activate', function(done){
+			var email, handler;
+			async.waterfall([
+				function (cb) {r.post('/users').expect(201,cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					var att = res.content.attachments, exp = attachments.activate;
+					mail.unbind(email,handler);
+					// check there is an attachment
+					should(att).be.ok();
+					// check the attachment matches
+					att.length.should.eql(exp.length);
+					att[0].fileName.should.eql(exp[0].filename);
+					att[0].content.toString().should.eql(exp[0].content.toString());
+					att[1].fileName.should.eql(exp[1].filename);
+					att[1].content.toString().should.eql(exp[1].content.toString());
+					cb();
+				}
+			],done);
+		});
+		it('should include correct attachment for passwordreset', function(done){
+			var email = users["1"].email, handler;
+			async.waterfall([
+				function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+				function (res,cb) {
+					var att = res.content.attachments, exp = attachments.passwordreset;
+					mail.unbind(email,handler);
+					// check there is an attachment
+					should(att).be.ok();
+					// check the attachment matches
+					att.length.should.eql(exp.length);
+					att[0].fileName.should.eql(exp[0].filename);
+					att[0].content.toString().should.eql(exp[0].content.toString());
+					att[1].fileName.should.eql(exp[1].filename);
+					att[1].content.toString().should.eql(exp[1].content.toString());
+					cb();
 				}
 			],done);
 		});
