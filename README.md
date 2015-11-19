@@ -122,6 +122,7 @@ The `config` object passed to `activator.init()` **must** contain the following 
 Optionally, config can also contain:
 
 * `id`: the property that contains the ID in a user when it is found using `find`. See below for `user.save()`
+* `attachments`: object with attachments to include in messages. See below for detailed attachment formats.
 
 
 ##### user
@@ -216,6 +217,15 @@ For details aboute nodemailer's transports, see the nodemailer transports at htt
 
 ##### templates
 The directory where you keep text files that serve as mail templates. See below under the section templates.
+
+##### attachments
+The initialization object property `attachments` is an object with 0, 1 or 2 keys:
+
+* `activate`: the attachment to add to activation messages
+* `passwordreset`: the attachment to add to password reset messages
+
+The value for each of these attachments is an object matching the `attachments` object format from https://github.com/andris9/Nodemailer#attachments
+
 
 
 ### Responses and Your Handlers
