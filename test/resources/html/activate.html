@@ -1,8 +1,15 @@
 Activate Email
 -------
+<head>
+<style>
+    .my-class {
+        background: blue;
+    }
+</style>
+</head>
 <br/>
 <u>This</u> is where everything goes for <i>activate</u>. Please click on the following URL:
 
-<a href="http://github.com/deitch/activate"><%= request.protocol %>://<%= request.headers.host %>/activate/my/account?code=<%= code %>&email=<%= email %>&user=<%= id %></a>
+<a class="my-class" href="http://github.com/deitch/activate"><%= request.protocol %>://<%= request.headers.host %>/activate/my/account?code=<%= code %>&email=<%= email %>&user=<%= id %></a>
 
 <b>Thanks!</b>
