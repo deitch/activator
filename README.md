@@ -123,6 +123,7 @@ Optionally, config can also contain:
 
 * `id`: the property that contains the ID in a user when it is found using `find`. See below for `user.save()`
 * `attachments`: object with attachments to include in messages. See below for detailed attachment formats.
+* `styliner`: boolean that turns on styliner for template compilation
 
 
 ##### user
@@ -226,7 +227,8 @@ The initialization object property `attachments` is an object with 0, 1 or 2 key
 
 The value for each of these attachments is an object matching the `attachments` object format from https://github.com/andris9/Nodemailer#attachments
 
-
+##### styliner
+The boolean value for the initialization object property styliner specifies whether the [styliner](http://styliner.slaks.net/) libary should be used to compile your html templates. This libary provides inlining of css styles from <style> tags for better Gmail support. 
 
 ### Responses and Your Handlers
 All of the middleware available in activator can function in one of two modes:

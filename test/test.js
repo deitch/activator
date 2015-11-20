@@ -462,6 +462,30 @@ allTests = function () {
 			],done);
 		});
 	});
+	describe('with styliner property', function() {
+		before(function(){
+			templatesPath = templates+'/html';
+			activator.init({user:userModel,transport:url,templates:templatesPath,from:from,styliner:true});
+		});
+
+		it('should inline style tags', function(done) {
+			var email, handler;
+			async.waterfall([
+				function (cb) {r.post('/users').expect(201,cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					res.content.html.match(/style="background: blue;"/)[0].should.be.ok();
+					cb();
+				}
+			],done);
+		});
+	});
 	describe('with email property override', function(){
 		before(function(){
 		  activator.init({user:userModelEmail,emailProperty:"funny",transport:url,templates:templates,from:from});
