@@ -1,7 +1,7 @@
 {
   "name": "activator",
   "description": "simple user activation and password reset for nodejs",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "url": "http://github.com/deitch/activator",
   "author": "Avi Deitcher http://github.com/deitch",
   "contributors": [
@@ -53,5 +53,6 @@
     "type": "git",
     "url": "http://github.com/deitch/activator.git"
   },
-  "bugs": "https://github.com/deitch/activator/issues"
+  "bugs": "https://github.com/deitch/activator/issues",
+	"license" : "MIT"	
 }
