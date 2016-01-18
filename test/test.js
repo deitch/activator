@@ -100,7 +100,7 @@ genHandler = function(email,path,data,cb) {
 			should.exist(url);
 			// check that code and email match what is in database
 			url.length.should.eql(4);
-			ret = _.object(["path","code","email","user"],url);
+			ret = _.zipObject(["path","code","email","user"],url);
 			ret.email.should.eql(email);
 		}
 		if (data.html) {
@@ -110,7 +110,7 @@ genHandler = function(email,path,data,cb) {
 			should.exist(url);
 			// check that code and email match what is in database
 			url.length.should.eql(4);
-			ret = _.object(["path","code","email","user"],url);
+			ret = _.zipObject(["path","code","email","user"],url);
 			ret.email.should.eql(email);
 		}
 		if (!ret) {
@@ -118,7 +118,7 @@ genHandler = function(email,path,data,cb) {
 			should.exist(url);
 			// check that code and email match what is in database
 			url.length.should.eql(4);
-			ret = _.object(["path","code","email","user"],url);
+			ret = _.zipObject(["path","code","email","user"],url);
 			ret.email.should.eql(email);
 		}
 		ret.content = content;
