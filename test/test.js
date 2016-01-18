@@ -8,7 +8,7 @@ r = request(app), mail, fs = require('fs'),
 activator = require('../lib/activator'), templates = __dirname+'/resources',
 mailer = require('nodemailer'),
 USERS = {
-	"1": {id:"1",email:"me@you.com",password:"1234"}
+	"1": {id:"1",childObject:{id:"1"},email:"me@you.com",password:"1234"}
 }, lang,
 users,
 quote = function (regex) {
@@ -62,6 +62,9 @@ userModelEmail = _.extend({},userModel,{find: function (login,cb) {
 	this._find(login,function (err,res) {
 		if (res && res.email) {
 			res.funny = res.email;
+			res.childObject = {
+				funny: res.email
+			};
 			delete res.email;
 		}
 		cb(err,res);
@@ -73,7 +76,7 @@ url = "smtp://localhost:"+MAILPORT+"/activator.net",
 maileropts = { host: "localhost", port:MAILPORT, name: "activator.net", secureConnection: false },
 from = "test@activator.net",
 createUser = function (req,res,next) {
-	users["2"] = {id:"2",email:"you@foo.com",password:"5678"};
+	users["2"] = {id:"2",childObject:{id:"2"},email:"you@foo.com",password:"5678"};
 	req.activator = {id:"2",body:"2"};
 	next();
 },
@@ -489,7 +492,7 @@ allTests = function () {
 	describe('with email property override', function(){
 		before(function(){
 		  activator.init({user:userModelEmail,emailProperty:"funny",transport:url,templates:templates,from:from});
-		});		  
+		});
 		it('activate should succeed for known user', function(done){
 			var email, handler;
 			async.waterfall([
@@ -510,6 +513,45 @@ allTests = function () {
 			var email = users["1"].email, handler;
 			async.waterfall([
 				function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+				}
+			],done);
+		});
+	});
+	describe('with email property override in model child object', function(){
+		it('activate should succeed for known user', function(done){
+			var email, handler;
+			async.waterfall([
+				function (cb) {
+					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from});
+					r.post('/users').expect(201,cb);
+				},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
+				}
+			],done);
+		});
+		it('activate should fail on bad property', function(done){
+			activator.init({user:userModelEmail,emailProperty:"childObject.badPath.funny",transport:url,templates:templates,from:from});
+			r.post('/users').expect(400,done);
+		});
+		it('password reset should succeed for known email', function(done){
+			var email = users["1"].email, handler;
+			async.waterfall([
+				function (cb) {
+					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from});
+					r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);
+				},
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
@@ -542,6 +584,45 @@ allTests = function () {
 			var email = users["1"].email, handler;
 			async.waterfall([
 				function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					r.put('/passwordreset/'+email).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+				}
+			],done);
+		});
+	});
+	describe('with id property override in model child object', function(){
+		it('activate should succeed for known user', function(done){
+			var email, handler;
+			async.waterfall([
+				function (cb) {
+					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from});
+					r.post('/users').type('json').send({email:"foo@bar.com"}).expect(201,cb);
+				},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					mail.unbind(email,handler);
+					r.put('/users/'+email+'/activate').type("json").send({code:res.code}).expect(200,cb);
+				}
+			],done);
+		});
+		it('activate should fail on bad property', function(done){
+			activator.init({user:userModel,transport:url,templates:templates,id:'childObject.badPath.id',from:from});
+			r.post('/users').type('json').send({email:"foo@bar.com"}).expect(404,done);
+		});
+		it('password reset should succeed for known email', function(done){
+			var email = users["1"].email, handler;
+			async.waterfall([
+				function (cb) {
+					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from});
+					r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);
+				},
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
