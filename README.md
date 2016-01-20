@@ -114,14 +114,14 @@ In order for activator to work, it needs to be able to read your user instances 
 The `config` object passed to `activator.init()` **must** contain the following keys:
 
 * `user`: object that allows activator to find and save a user object. See below.
-* `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email".
+* `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email". Use dot notation to specify a property not at the root, e.g. "profiles.local.email"
 * `transport`: string or pre-configured nodemailer transport that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
 * `from`: string representing the sender for all messages
 
 Optionally, config can also contain:
 
-* `id`: the property that contains the ID in a user when it is found using `find`. See below for `user.save()`
+* `id`: the property that contains the ID in a user when it is found using `find`. Use dot notation to specify a property not at the root, e.g. "profiles.local.remoteid". See below for `user.save()`
 * `attachments`: object with attachments to include in messages. See below for detailed attachment formats.
 * `styliner`: boolean that turns on styliner for template compilation
 
