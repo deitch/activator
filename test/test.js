@@ -83,6 +83,7 @@ createUser = function (req,res,next) {
 splitTemplate = function (path) {
 	/*jslint stupid:true */
 	var content = fs.readFileSync(path,'utf8');
+	content = content.replace(/\r\n/g,'\n');
 	/*jslint stupid:false */
 	content = content.match(/^([^\n]*)\n[^\n]*\n((.|\n)*)/m);
 	return(content);
