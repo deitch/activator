@@ -35,7 +35,7 @@
   "devDependencies": {
     "body-parser": "^1.12.2",
     "express": "4.x",
-    "mocha": "1.x",
+    "mocha": "^2.4.5",
     "should": "7.x.x",
     "smtp-tester": "~0.5.1",
     "supertest": "0.x"
@@ -58,5 +58,5 @@
     "url": "http://github.com/deitch/activator.git"
   },
   "bugs": "https://github.com/deitch/activator/issues",
-	"license" : "MIT"	
+  "license": "MIT"
 }
