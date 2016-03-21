@@ -19,10 +19,40 @@ Example:
 		app.post("/passwordreset",activator.createPasswordReset);
 		app.put("/passwordreset/:user",activator.completePasswordReset);
 
-## Versions
+## Breaking Changes
+
+#### Express versions
 Activator version >= 1.0.0 works **only** with express >=4.0.0
 
 Activator version <1.0.0 works **only** with express <4.0.0
+
+#### Algorithms
+Activator version >= 2.0.0 works **only** with [JSON Web Tokens](https://tools.ietf.org/html/rfc7519) and ignores **completely** the user database fields for password reset code and password reset time.
+
+Activator version < 2.0.0 work **only** with custom fields in the database to store the password reset code, password reset time, and activation code.
+
+**The user model used for activator < 2.0.0 is incompatible with the one for activator >= 2.0.0**. 
+
+The signature prior to 2.0.0 was:
+
+````javascript
+user = {
+	find(id,callback),
+	save(id,model,callback)
+}
+````
+
+The signature beginning with 2.0.0 is:
+
+````javascript
+user = {
+	find(id,callback),
+	activate(id,callback),
+	setPassword(id,password,callback)
+}
+````
+
+
 
 ## Purpose
 Most interaction between users and your Web-driven service take place directly between the user and the server: log in, send a message, join a group, post an update, close a deal, etc. The user logs in by entering a username and password, and succeeds (or doesn't); the user enters a message and clicks "post"; etc.
@@ -89,7 +119,8 @@ When you use activator, the steps are as follows:
 To user *activator*, you select the routes you wish to use - activator does not impose any special routes - and use activator as middleware. Of course, you will need to tell activator how to do several things, like:
 
 * How to find a user, so it can check for the user
-* How to update a user, so it can mark the user as being activated, or that it has a temporary password reset key
+* How to mark a user as activated, once they have sent the correct verified code
+* How to change a user's password, once they have sent the correct verified code within time and a new password
 * Where to find the templates to use for activation and password reset emails
 * What URL the user should be using to activate or reset a password. The URL is included in the email, since the user normally clicks on a link.
 
@@ -113,11 +144,12 @@ In order for activator to work, it needs to be able to read your user instances 
 
 The `config` object passed to `activator.init()` **must** contain the following keys:
 
-* `user`: object that allows activator to find and save a user object. See below.
+* `user`: object that allows activator to find a user object, indicate activation, set a new password. See below.
 * `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email". Use dot notation to specify a property not at the root, e.g. "profiles.local.email"
 * `transport`: string or pre-configured nodemailer transport that describes how we will send email. See below.
 * `templates`: string describing the full path to the mail templates. See below.
 * `from`: string representing the sender for all messages
+* `signkey`: A string used to sign all of the JWT with HS256. If it is not present, activator has no way of confirming key signing between processes or from one startup of the process to the next.
 
 Optionally, config can also contain:
 
@@ -126,11 +158,18 @@ Optionally, config can also contain:
 * `styliner`: boolean that turns on styliner for template compilation
 
 
+
 ##### user
-The user object needs to have two methods, with the following signatures:
+The user object needs to have three methods, with the following signatures:
 
     user.find(login,callback);
-		
+    user.activate(id,callback);
+    user.setPassword(id,password,callback);
+
+###### find a user
+
+    user.find(login,callback);
+
 Where:
 
 * `login`: string with which the user logs in. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it.
@@ -141,25 +180,36 @@ Where:
     - a property named `password_reset_code` if the user has a stored password reset code.
     - a property named `password_reset_time` if the user has a stored password reset time.
 
-activator also needs to be able to save a user:
 
-    user.save(id,data,callback);
+###### activate a user
+
+    user.activate(id,callback);
 
 Where:
 
-* `id`: ID of the user to save. 
-* `data`: the data to update the user as an object, e.g.: `{activation_code: "asqefcehe78qa"}`
-* `callback`: the callback function that `user.save()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
+* `id`: ID of the user to activate. 
+* `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
-What properties will it add to the user object in `save()`?
+activator does not care how you mark the user as activated or not. It doesn't even care of you never check activation (but that is a *really* bad idea, right?). All it cares is that you give it a way to indicate successful activation.
 
-1. activation: When a new activation is created, it will save a random string to `activation_code`. For example: `user.save("256",{activation_code:"ABT678HB"})`. When activation is complete, it will set the code to "X".
-2. password reset: When a new password reset is created, it will save a random string to `password_reset_code` and an integer representing the expiry at `password_reset_time`. For examle, `user.save("256",{password_reset_code:"ABT678YY",password_reset_time:1377151862978})`. When password reset is complete, it will set the code to "X" and the time to 0.
+###### set a password
 
-What ID does it use to save the user?
+    user.setPassword(id,password,callback);
 
-* If you passed an `id` parameter to `activator.init(config)`, then it is that property of the user. For example, `activator.init({id:'uid'})` means that when activator does `user.find('me@email.com')` and the returned object contains `{uid:12345}`, then activator will save as `user.save(12345,{activation_code:"ABFHWD"})`
-* If you did not pass an `id` parameter, then it is the exact same search term as used in `user.find()`. else it is the search term used as `login` in `user.find(login)`. For example, if activator does `user.find('12bc5')` then it will also do `user.save('12bc5')`.
+Where:
+
+* `id`: ID of the user to change password 
+* `password`: new password for he user 
+* `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
+
+
+
+##### User ID
+
+What ID does it use when activating or setting the password?
+
+* If you passed an `id` parameter to `activator.init(config)`, then it is that property of the user. For example, `activator.init({id:'uid'})` means that when activator does `user.find('me@email.com')` and the returned object contains `{uid:12345}`, then activator will activate as `user.activate(12345)`
+* If you did not pass an `id` parameter, then it is the exact same search term as used in `user.find()`. else it is the search term used as `login` in `user.find(login)`. For example, if activator does `user.find('12bc5')` then it will also do `user.activate('12bc5')`.
 
 
 
@@ -300,7 +350,7 @@ activator will return a `200` if successful, a `400` if there is an error, along
 activator assumes the following:
 
 1. The express parameter `user` (i.e. `/users/:user/whatever/foo`) contains the user identifier to pass to `user.find()` as the first parameter. It will retrieve it using `req.param('user')`
-2. The `req.body` or `req.query` will contain the parameter `code` which has the actual activation code. It will retrieve it using `req.param('code')`
+2. The `req` contains the JWT for the activation. It will look in three places. First, it will check `req.headers.Authorization` for the JWT from the message in `Bearer` format, following the RFC. If it does not find it in the `Authorization` header, it will look in the query `req.query.authorization`, and then in the body `req.body.authorization`.
 
 If it is successful activating, it will return `200`, a `400` if there is an error (including invalid activation code), and a `404` if the user cannot be found.
 
@@ -332,7 +382,7 @@ activator will return a `200` if successful, a `400` if there is an error, along
 activator assumes the following:
 
 1. The express parameter `user` (i.e. `/users/:user/whatever/foo`) contains the user identifier to pass to `user.find()` as the first parameter. It will retrieve it using `req.param('user')`
-2. The `req.body` or `req.query` will contain the parameter `code` which has the actual password reset code, and the parameter `password` which is the new password to set. It will retrieve them using `req.param('code')` and `req.param('password')`.
+2. The `req` contains the JWT for the activation. It will look in three places. First, it will check `req.headers.Authorization` for the JWT from the message in `Bearer` format, following the RFC. If it does not find it in the `Authorization` header, it will look in the query `req.query.authorization`, and then in the body `req.body.authorization`.
 
 If it is successful resetting the password, it will return `200`, a `400` if there is an error (including invalid code), and a `404` if the user cannot be found.
 
@@ -364,7 +414,8 @@ Will be turned into
 			 
 So what variables are available inside the templates?
 
-* `code`: the activation or password reset code
+* `code`: the activation or password reset JSON Web Token
+* `authorization`: the activation or password reset JSON Web Token
 * `email`: the email of the recipient user
 * `id`: the internal user ID of the user
 * `request`: the `request` object that was passed to the route handler, from which you can extract lots of headers, for example the protocol at `req.protocol` or the hostname from `req.headers.host`. 
@@ -432,11 +483,6 @@ How does it know which language to use? Simple, just set it on `req.lang`. You m
 		app.use(app.router);
 		app.post('/users',activator.createActivate); // etc.
 ````
-
-
-
-
-
 
 
 ## Example

@@ -1,4 +1,4 @@
-/*jslint node:true, nomen:true, debug:true */
+/*jslint node:true, nomen:true, debug:true, unused:false */
 /*global escape */
 
 /*
@@ -8,24 +8,12 @@
 
 var express = require('express'), request = require('supertest'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
-mail, fs = require('fs'),
+mail, 
 activator = require('./lib/activator'), templates = __dirname+'/test/resources',
 users = {
 	"1": {id:"1",email:"me@you.com",password:"1234"}
 },
 users,
-quote = function (regex) {
-	/*jslint regexp:true */
-  var ret = regex.replace(/([()[{*+.$^\\/\\|?])/g, '\\$1');
-	/*jslint regexp:false */
-	return(ret);
-},
-bodyMatcher = function (body,matcher) {
-	/*jslint regexp:true */
-	var ret = body.replace(/[\r\n]+/g,'').match(new RegExp(quote(matcher.replace(/[\r\n]+/g,'')).replace(/<%=[^%]+%>/g,'.*')));
-	/*jslint regexp:false */
-	return(ret);
-},
 userModel = {
 	_find: function (login,cb) {
 		var found = null;
@@ -46,25 +34,23 @@ userModel = {
 	find: function() {
 		this._find.apply(this,arguments);
 	},
-	save: function (id,model,cb) {
+	activate: function (id,cb) {
 		if (id && users[id]) {
-			_.extend(users[id],model);
+			users[id].activated = true;
+			cb(null);
+		} else {
+			cb(404);
+		}
+	},
+	setPassword: function (id,password,cb) {
+		if (id && users[id]) {
+			users[id].password = password;
 			cb(null);
 		} else {
 			cb(404);
 		}
 	}
-}, 
-userModelEmail = _.extend({},userModel,{find: function (login,cb) {
-	this._find(login,function (err,res) {
-		if (res && res.email) {
-			res.funny = res.email;
-			delete res.email;
-		}
-		cb(err,res);
-	});
-	}
-}),
+},
 MAILPORT = 30111,
 PORT = 30110,
 URL = "http://localhost:"+PORT,
@@ -74,13 +60,6 @@ createUser = function (req,res,next) {
 	users["2"] = {id:"2",email:"you@foo.com",password:"5678"};
 	req.activator = {id:"2",body:"2"};
 	next();
-},
-splitTemplate = function (path) {
-	/*jslint stupid:true */
-	var content = fs.readFileSync(path,'utf8');
-	/*jslint stupid:false */
-	content = content.match(/^([^\n]*)\n[^\n]*\n((.|\n)*)/m);
-	return(content);
 },
 genHandler = function(email,subject,path,data,cb) {
 	if (!cb) {
@@ -168,7 +147,7 @@ var examples = {
 			},
 			function (res,cb) {
 				mail.unbind(email,handler);
-				r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
+				r.put('/users/'+res.user+'/activate').type("json").send({Activation:res.code}).expect(200,cb);
 			}
 		],function () {
 			console.log("done");
@@ -187,7 +166,7 @@ var examples = {
 			},
 			function (res,cb) {
 				mail.unbind(email,handler);
-				r.put('/usersnext/'+res.user+'/activate').type("json").send({code:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
+				r.put('/usersnext/'+res.user+'/activate').type("json").send({Activation:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
 			}
 		],function () {
 			console.log("done");
@@ -201,7 +180,7 @@ var examples = {
 			function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 			function (res,cb) {
 				mail.unbind(email,handler);
-				r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+				r.put('/passwordreset/'+res.user).type("json").send({Activation:res.code,password:"abcdefgh"}).expect(200,cb);
 			}
 		],function () {
 			console.log("done");
@@ -215,7 +194,7 @@ var examples = {
 			function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 			function (res,cb) {
 				mail.unbind(email,handler);
-				r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+				r.put('/passwordresetnext/'+res.user).type("json").send({Activation:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
 			}
 		],function () {
 			console.log("done");

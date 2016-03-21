@@ -6,9 +6,9 @@ var request = require('supertest'), should = require('should'), express = requir
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 r = request(app), mail, fs = require('fs'),
 activator = require('../lib/activator'), templates = __dirname+'/resources',
-mailer = require('nodemailer'),
+mailer = require('nodemailer'), jwt = require('jsonwebtoken'), SIGNKEY = "1234567890abcdefghijklmn",
 USERS = {
-	"1": {id:"1",childObject:{id:"1"},email:"me@you.com",password:"1234"}
+	"1": {id:"1",childObject:{id:"1"},email:"me@you.com",password:"1234",activated:false}
 }, lang,
 users,
 quote = function (regex) {
@@ -22,6 +22,12 @@ bodyMatcher = function (body,matcher) {
 	var ret = body.replace(/[\r\n]+/g,'').match(new RegExp(quote(matcher.replace(/[\r\n]+/g,'')).replace(/<%=[^%]+%>/g,'.*')));
 	/*jslint regexp:false */
 	return(ret);
+},
+changeResetTime = function (token,diff) {
+	var original = jwt.decode(token), code;
+	original.iat = original.iat - 100*60;
+	code = jwt.sign(original,SIGNKEY,{algorithm:"HS256"});
+	return code;
 },
 userModel = {
 	_find: function (login,cb) {
@@ -43,9 +49,17 @@ userModel = {
 	find: function() {
 		this._find.apply(this,arguments);
 	},
-	save: function (id,model,cb) {
+	activate: function (id,cb) {
 		if (id && users[id]) {
-			_.extend(users[id],model);
+			users[id].activated = true;
+			cb(null);
+		} else {
+			cb(404);
+		}
+	},
+	setPassword: function (id,password,cb) {
+		if (id && users[id]) {
+			users[id].password = password;
 			cb(null);
 		} else {
 			cb(404);
@@ -195,69 +209,203 @@ allTests = function () {
 		it('should send 500 for user property not added', function(done){
 			r.post('/usersbad').expect(500,done);
 		});
-		it('should fail for known user but bad code', function(done){
-			var email, handler;
-			async.waterfall([
-				function (cb) {r.post('/users').expect(201,"2",cb);},
-				function (res,cb) {
-					email = users["2"].email;
-					handler = aHandler(email,cb);
-					mail.bind(email,handler);
-				},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/users/'+res.user+'/activate').type("json").send({code:"asasqsqsqs"}).expect(400,'invalidcode',cb);
-				}
-			],done);
+		describe('auth header', function(){
+			it('should fail for known user but bad code', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,"2",cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').set({'authorization':"Bearer asasqsqsqs"}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for known user but bad code with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/usersnext/'+res.user+'/activate').set({'authorization':"Bearer asasqsqsqs"}).expect('activator','completeActivateHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').set({"authorization":"Bearer "+res.code}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+res.user+'/activate').set({"authorization":"Bearer "+res.code}).expect('activator','completeActivateHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
-		it('should fail for known user but bad code with handler', function(done){
-			var email, handler;
-			async.waterfall([
-				function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
-				function (res,cb) {
-					email = users["2"].email;
-					handler = aHandler(email,cb);
-					mail.bind(email,handler);
-				},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/usersnext/'+res.user+'/activate').type("json").send({code:"asasqsqsqs"}).expect('activator','completeActivateHandler').expect(400,cb);
-				}
-			],done);
+		describe('auth query', function(){
+			it('should fail for known user but bad code', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,"2",cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').type("json").query({authorization:"asasqsqsqs"}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for known user but bad code with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/usersnext/'+res.user+'/activate').type("json").query({authorization:"asasqsqsqs"}).expect('activator','completeActivateHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').type("json").query({authorization:res.code}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+res.user+'/activate').type("json").query({authorization:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
-		it('should succeed for known user', function(done){
-			var email, handler;
-			async.waterfall([
-				function (cb) {r.post('/users').expect(201,cb);},
-				function (res,cb) {
-					res.text.should.equal("2");
-					email = users["2"].email;
-					handler = aHandler(email,cb);
-					mail.bind(email,handler);
-				},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
-				}
-			],done);
-		});
-		it('should succeed for known user with handler', function(done){
-			var email, handler;
-			async.waterfall([
-				function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
-				function (res,cb) {
-					res.text.should.equal("2");
-					email = users["2"].email;
-					handler = aHandler(email,cb);
-					mail.bind(email,handler);
-				},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					// check there is no attachment
-					should(res.content.attachments).undefined();
-					r.put('/usersnext/'+res.user+'/activate').type("json").send({code:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
-				}
-			],done);
+		describe('auth body', function(){
+			it('should fail for known user but bad code', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,"2",cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').type("json").send({authorization:"asasqsqsqs"}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for known user but bad code with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/usersnext/'+res.user+'/activate').type("json").send({authorization:"asasqsqsqs"}).expect('activator','completeActivateHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+res.user+'/activate').type("json").send({authorization:res.code}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+res.user+'/activate').type("json").send({authorization:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
   });
 	describe('password reset', function(){
@@ -273,125 +421,377 @@ allTests = function () {
 	  it('should send 404 for unknown email or ID with handler', function(done){
 			r.post("/passwordresetnext").type('json').send({user:"john@john.com"}).expect('activator','createResetHandler').expect(404,done);
 	  });
-		it('should fail for known email but bad code', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {
-					r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
-				function (res,cb) {
-					handler = rHandler(email,cb);
-					mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordreset/'+res.user).type("json").send({code:"asasqsqsqs",password:"asasa"}).expect(400,cb);
-				}
-			],done);
+		describe('auth header', function(){
+			it('should fail for known email but bad code', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer asasqsqsqs"}).type("json").send({password:"asasa"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email but bad code with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer asasqsqsqs"}).type("json").send({password:"asasa"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).type("json").set({Authorization:"Bearer "+res.code}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").set({Authorization:"Bearer "+res.code}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+code}).type("json").send({password:"abcdefgh"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// should have no attachments
+						should(res.content.attachments).undefined();
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
-		it('should fail for known email but bad code with handler', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {
-					r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
-				function (res,cb) {
-					handler = rHandler(email,cb);
-					mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordresetnext/'+res.user).type("json").send({code:"asasqsqsqs",password:"asasa"}).expect('activator','completeResetHandler').expect(400,cb);
-				}
-			],done);
+		describe('auth query', function(){
+			it('should fail for known email but bad code', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).query({"Authorization":"asasqsqsas"}).type("json").send({password:"asasa"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email but bad code with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).query({Authorization:"asasqsqsqs"}).type("json").send({password:"asasa"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).query({"Authorization":res.code}).type("json").send({}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).query({"Authorization":res.code}).type("json").send({}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordreset/'+res.user).query({Authorization:code}).type("json").send({password:"abcdefgh"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordresetnext/'+res.user).query({Authorization:code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).query({Authorization:res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).query({Authorization:res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// should have no attachments
+						should(res.content.attachments).undefined();
+						r.put('/passwordreset/'+res.user).query({Authorization:res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).query({Authorization:res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
-		it('should fail for known email with good code but missing new password', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code}).expect(400,cb);
-				}
-			],done);
-		});
-		it('should fail for known email with good code but missing new password with handler', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code}).expect('activator','completeResetHandler').expect(400,cb);
-				}
-			],done);
-		});
-		it('should fail for expired reset code', function(done){
-			var user = users["1"], email = user.email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					user.password_reset_time = 100;
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(400,cb);
-				}
-			],done);
-		});
-		it('should fail for expired reset code with handler', function(done){
-			var user = users["1"], email = user.email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					user.password_reset_time = 100;
-					r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
-				}
-			],done);
-		});
-		it('should succeed for known ID', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
-				}
-			],done);
-		});
-		it('should succeed for known ID with handler', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
-				}
-			],done);
-		});
-		it('should succeed for known email', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					// should have no attachments
-					should(res.content.attachments).undefined();
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
-				}
-			],done);
-		});
-		it('should succeed for known email with handler', function(done){
-			var email = users["1"].email, handler;
-			async.waterfall([
-				function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
-				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-				function (res,cb) {
-					mail.unbind(email,handler);
-					r.put('/passwordresetnext/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
-				}
-			],done);
+		describe('auth body', function(){
+			it('should fail for known email but bad code', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).type("json").send({Authorization:"asasqsqsqs",password:"asasa"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email but bad code with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {
+						r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {
+						handler = rHandler(email,cb);
+						mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:"asasqsqsqs",password:"asasa"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for known email with good code but missing new password with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordreset/'+res.user).type("json").send({Authorization:code,password:"abcdefgh"}).expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for expired reset code with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// create a new code but signed with a different time
+						var code = changeResetTime(res.code,-100);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known ID with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// should have no attachments
+						should(res.content.attachments).undefined();
+						r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
+					}
+				],done);
+			});
+			it('should succeed for known email with handler', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
 	});
 	describe('with attachments', function(){
@@ -418,7 +818,7 @@ allTests = function () {
 			]
 	  };
 		before(function(){
-		  activator.init({user:userModel,transport:url,templates:templates,from:from,attachments:attachments});
+		  activator.init({user:userModel,transport:url,templates:templates,from:from,attachments:attachments,signkey:SIGNKEY});
 		});
 		it('should include correct attachment for activate', function(done){
 			var email, handler;
@@ -467,9 +867,10 @@ allTests = function () {
 		});
 	});
 	describe('with styliner property', function() {
+		var templatesPath;
 		before(function(){
 			templatesPath = templates+'/html';
-			activator.init({user:userModel,transport:url,templates:templatesPath,from:from,styliner:true});
+			activator.init({user:userModel,transport:url,templates:templatesPath,from:from,styliner:true,signkey:SIGNKEY});
 		});
 
 		it('should inline style tags', function(done) {
@@ -492,7 +893,7 @@ allTests = function () {
 	});
 	describe('with email property override', function(){
 		before(function(){
-		  activator.init({user:userModelEmail,emailProperty:"funny",transport:url,templates:templates,from:from});
+		  activator.init({user:userModelEmail,emailProperty:"funny",transport:url,templates:templates,from:from,signkey:SIGNKEY});
 		});
 		it('activate should succeed for known user', function(done){
 			var email, handler;
@@ -506,7 +907,7 @@ allTests = function () {
 				},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					r.put('/users/'+res.user+'/activate').type("json").send({Authorization:res.code}).expect(200,cb);
 				}
 			],done);
 		});
@@ -517,7 +918,7 @@ allTests = function () {
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
 		});
@@ -527,7 +928,7 @@ allTests = function () {
 			var email, handler;
 			async.waterfall([
 				function (cb) {
-					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from});
+					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from,signkey:SIGNKEY});
 					r.post('/users').expect(201,cb);
 				},
 				function (res,cb) {
@@ -538,32 +939,32 @@ allTests = function () {
 				},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/users/'+res.user+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					r.put('/users/'+res.user+'/activate').type("json").send({Authorization:res.code}).expect(200,cb);
 				}
 			],done);
 		});
 		it('activate should fail on bad property', function(done){
-			activator.init({user:userModelEmail,emailProperty:"childObject.badPath.funny",transport:url,templates:templates,from:from});
+			activator.init({user:userModelEmail,emailProperty:"childObject.badPath.funny",transport:url,templates:templates,from:from,signkey:SIGNKEY});
 			r.post('/users').expect(400,done);
 		});
 		it('password reset should succeed for known email', function(done){
 			var email = users["1"].email, handler;
 			async.waterfall([
 				function (cb) {
-					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from});
+					activator.init({user:userModelEmail,emailProperty:"childObject.funny",transport:url,templates:templates,from:from,signkey:SIGNKEY});
 					r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);
 				},
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/passwordreset/'+res.user).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
 		});
 	});
 	describe('with id property override', function(){
 		before(function(){
-		  activator.init({user:userModel,transport:url,templates:templates,id:'id',from:from});
+		  activator.init({user:userModel,transport:url,templates:templates,id:'id',from:from,signkey:SIGNKEY});
 		});
 		it('activate should succeed for known user', function(done){
 			var email, handler;
@@ -577,7 +978,7 @@ allTests = function () {
 				},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/users/'+email+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					r.put('/users/'+email+'/activate').type("json").send({Authorization:res.code}).expect(200,cb);
 				}
 			],done);
 		});
@@ -588,7 +989,7 @@ allTests = function () {
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/passwordreset/'+email).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					r.put('/passwordreset/'+email).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
 		});
@@ -598,7 +999,7 @@ allTests = function () {
 			var email, handler;
 			async.waterfall([
 				function (cb) {
-					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from});
+					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from,signkey:SIGNKEY});
 					r.post('/users').type('json').send({email:"foo@bar.com"}).expect(201,cb);
 				},
 				function (res,cb) {
@@ -609,25 +1010,25 @@ allTests = function () {
 				},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/users/'+email+'/activate').type("json").send({code:res.code}).expect(200,cb);
+					r.put('/users/'+email+'/activate').type("json").send({Authorization:res.code}).expect(200,cb);
 				}
 			],done);
 		});
 		it('activate should fail on bad property', function(done){
-			activator.init({user:userModel,transport:url,templates:templates,id:'childObject.badPath.id',from:from});
+			activator.init({user:userModel,transport:url,templates:templates,id:'childObject.badPath.id',from:from,signkey:SIGNKEY});
 			r.post('/users').type('json').send({email:"foo@bar.com"}).expect(404,done);
 		});
 		it('password reset should succeed for known email', function(done){
 			var email = users["1"].email, handler;
 			async.waterfall([
 				function (cb) {
-					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from});
+					activator.init({user:userModel,transport:url,templates:templates,id:'childObject.id',from:from,signkey:SIGNKEY});
 					r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);
 				},
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/passwordreset/'+email).type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					r.put('/passwordreset/'+email).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
 		});
@@ -636,7 +1037,7 @@ allTests = function () {
 		var atemplate, htemplate, prtemplate, templatesPath;
 		before(function(){
 			templatesPath = templates+'/html';
-		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from});
+		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from,signkey:SIGNKEY});
 			/*jslint stupid:true */
 			atemplate = splitTemplate(templatesPath+'/activate.txt');
 			htemplate = splitTemplate(templatesPath+'/activate.html');
@@ -666,7 +1067,7 @@ allTests = function () {
 				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 				function (res,cb) {
 					mail.unbind(email,handler);
-					r.put('/passwordreset/1').type("json").send({code:res.code,password:"abcdefgh"}).expect(200,cb);
+					r.put('/passwordreset/1').type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 				}
 			],done);
 		});
@@ -677,7 +1078,7 @@ allTests = function () {
 		var parts, templatesPath;
 		before(function(){
 			templatesPath = templates+'/locale';
-		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from});
+		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from,signkey:SIGNKEY});
 			/*jslint stupid:true */
 			parts = {
 				txt: {
@@ -767,37 +1168,37 @@ describe('activator', function(){
 			r.post('/users').type("json").send({name:"john"}).expect(500,done);
     });
     it('completeactivate should send 500', function(done){
-			r.put('/users/1/activate').type("json").send({code:"12345"}).expect(500,done);
+			r.put('/users/1/activate').type("json").send({Authorization:"12345"}).expect(500,done);
     });
     it('passwordreset should send 500', function(done){
 			r.post('/passwordreset').type("json").send({name:"john"}).expect(500,done);
     });
     it('completepasswordreset should send 500', function(done){
-			r.put('/passwordreset/1').type("json").send({password:"abcd",code:"12345"}).expect(500,done);
+			r.put('/passwordreset/1').type("json").send({password:"abcd",Authorization:"12345"}).expect(500,done);
     });
     it('activatenext should send 500', function(done){
 			r.post('/usersnext').type("json").send({name:"john"}).expect('activator','createActivateHandler').expect(500,done);
     });
     it('completeactivatenext should send 500', function(done){
-			r.put('/usersnext/1/activate').type("json").send({code:"12345"}).expect('activator','completeActivateHandler').expect(500,done);
+			r.put('/usersnext/1/activate').type("json").send({Authorization:"12345"}).expect('activator','completeActivateHandler').expect(500,done);
     });
     it('passwordresetnext should send 500', function(done){
 			r.post('/passwordresetnext').type("json").send({name:"john"}).expect('activator','createResetHandler').expect(500,done);
     });
     it('completepasswordresetnext should send 500', function(done){
-			r.put('/passwordresetnext/1').type("json").send({password:"abcd",code:"12345"}).expect('activator','completeResetHandler').expect(500,done);
+			r.put('/passwordresetnext/1').type("json").send({password:"abcd",Authorization:"12345"}).expect('activator','completeResetHandler').expect(500,done);
     });
 	});
 	describe('initialized', function(){
 		describe('with string transport', function(){
 			before(function(){
-			  activator.init({user:userModel,transport:url,templates:templates,from:from});
+			  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY});
 			});
 			allTests();
 		});
 		describe('with nodemailer transport', function(){
 			before(function(){
-			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from});
+			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
 			});
 			allTests();
 		});
