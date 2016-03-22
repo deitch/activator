@@ -116,7 +116,7 @@ When you use activator, the steps are as follows:
 
 
 ### How To Use It
-To user *activator*, you select the routes you wish to use - activator does not impose any special routes - and use activator as middleware. Of course, you will need to tell activator how to do several things, like:
+To use *activator*, you select the routes you wish to use - activator does not impose any special routes - and use activator as middleware. Of course, you will need to tell activator how to do several things, like:
 
 * How to find a user, so it can check for the user
 * How to mark a user as activated, once they have sent the correct verified code
@@ -199,7 +199,7 @@ activator does not care how you mark the user as activated or not. It doesn't ev
 Where:
 
 * `id`: ID of the user to change password 
-* `password`: new password for he user 
+* `password`: new password for the user
 * `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
 
