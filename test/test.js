@@ -498,6 +498,32 @@ allTests = function () {
 					}
 				],done);
 			});
+			it('should fail when trying to update password of another user', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordreset/'+users["2"].id).set({"Authorization":"Bearer "+res.code}).type('json').send({password:"abcdefgh"}).expect(400,cb);
+						});
+					}
+				],done);
+			});
+			it('should fail when trying to update password of another user with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordresetnext/'+users["2"].id).set({"Authorization":"Bearer "+res.code}).type('json').send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+						});
+					}
+				],done);
+			});
 			it('should succeed for known ID', function(done){
 				var email = users["1"].email, handler;
 				async.waterfall([
@@ -622,6 +648,32 @@ allTests = function () {
 					}
 				],done);
 			});
+			it('should fail when trying to update password of another user', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordreset/'+users["2"].id).query({Authorization:res.code}).type('json').send({password:"abcdefgh"}).expect(400,cb);
+						});
+					}
+				],done);
+			});
+			it('should fail when trying to update password of another user with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordresetnext/'+users["2"].id).query({Authorization:res.code}).type('json').send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+						});
+					}
+				],done);
+			});
 			it('should succeed for known ID', function(done){
 				var email = users["1"].email, handler;
 				async.waterfall([
@@ -743,6 +795,32 @@ allTests = function () {
 						// create a new code but signed with a different time
 						var code = changeResetTime(res.code,-100);
 						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail when trying to update password of another user', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordreset/'+users["2"].id).type('json').send({Authorization:res.code,password:"abcdefgh"}).expect(400,cb);
+						});
+					}
+				],done);
+			});
+			it('should fail when trying to update password of another user with handler', function(done){
+				var user = users["1"], email = user.email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						createUser({}, {}, function() {
+							mail.unbind(email,handler);
+							r.put('/passwordresetnext/'+users["2"].id).type('json').send({Authorization:res.code,password:"abcdefgh"}).expect('activator','completeResetHandler').expect(400,cb);
+						});
 					}
 				],done);
 			});
