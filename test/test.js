@@ -1,7 +1,8 @@
-/*jslint node:true, nomen:true, debug:true */
+/*jslint debug:true */
 /*jshint unused:vars */
 /*global describe, before, beforeEach, it */
 
+"use strict";
 var request = require('supertest'), should = require('should'), express = require('express'), bodyParser = require('body-parser'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 r = request(app), mail, fs = require('fs'),
@@ -90,8 +91,10 @@ url = "smtp://localhost:"+MAILPORT+"/activator.net",
 maileropts = { host: "localhost", port:MAILPORT, name: "activator.net", secureConnection: false },
 from = "test@activator.net",
 createUser = function (req,res,next) {
-	users["2"] = {id:"2",childObject:{id:"2"},email:"you@foo.com",password:"5678"};
-	req.activator = {id:"2",body:"2"};
+	// id if the next unique ID
+	let id = (Math.max.apply(null,_.keys(users).map(function(i){return parseInt(i,10);}))+1).toString();
+	users[id] = {id:id,childObject:{id:id},email:id+"@foo.com",password:"5678"};
+	req.activator = {id:id,body:id};
 	next();
 },
 splitTemplate = function (path) {
@@ -240,6 +243,42 @@ allTests = function () {
 					}
 				],done);
 			});
+			it('should fail for another user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+"2"+'/activate').set({"authorization":"Bearer "+res.code}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for another user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+"2"+'/activate').set({"authorization":"Bearer "+res.code}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
 			it('should succeed for known user', function(done){
 				var email, handler;
 				async.waterfall([
@@ -306,6 +345,42 @@ allTests = function () {
 					}
 				],done);
 			});
+			it('should fail for another user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+"2"+'/activate').type("json").query({authorization:res.code}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for another user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+"2"+'/activate').type("json").query({authorization:res.code}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
 			it('should succeed for known user', function(done){
 				var email, handler;
 				async.waterfall([
@@ -369,6 +444,42 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						r.put('/usersnext/'+res.user+'/activate').type("json").send({authorization:"asasqsqsqs"}).expect('activator','completeActivateHandler').expect(400,cb);
+					}
+				],done);
+			});
+			it('should fail for another user', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {r.post('/users').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/users/'+"2"+'/activate').type("json").send({authorization:res.code}).expect(400,'invalidcode',cb);
+					}
+				],done);
+			});
+			it('should fail for another user with handler', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("3");
+						email = users["3"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).undefined();
+						r.put('/usersnext/'+"2"+'/activate').type("json").send({authorization:res.code}).expect(400,'invalidcode',cb);
 					}
 				],done);
 			});
