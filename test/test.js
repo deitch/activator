@@ -65,7 +65,7 @@ userModel = {
 		} else {
 			cb(404);
 		}
-	}
+	},
 }, 
 reset = function () {
 	users = _.cloneDeep(USERS);
@@ -563,6 +563,7 @@ allTests = function () {
 			});
 			it('should fail for known email with good code but missing new password', function(done){
 				var email = users["1"].email, handler;
+
 				async.waterfall([
 					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
 					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
@@ -1381,15 +1382,40 @@ describe('activator', function(){
 	describe('initialized', function(){
 		describe('with string transport', function(){
 			before(function(){
+			  userModel.generate = undefined;
 			  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY});
 			});
-			allTests();
+			allTests(false);
 		});
 		describe('with nodemailer transport', function(){
 			before(function(){
+			  userModel.generate = undefined;
 			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
 			});
-			allTests();
+			allTests(false);
+		});
+		describe('with generate', function(){
+			before(function(){
+			  userModel.generate = function(user, res) {
+			    return 'generated password';
+			  }
+			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+			});
+			it('should ignore user password and use generated password', function(done){
+				var email = users["1"].email, handler;
+				async.waterfall([
+					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code, password: 'abcdefgh'}).expect('activator','completeResetHandler').expect(200, cb);
+					},
+					function (res, cb) {
+						users["1"].password.should.eql("generated password");
+						cb();
+					}
+				],done);
+			});
 		});
 	});
 });
