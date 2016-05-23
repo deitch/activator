@@ -112,6 +112,7 @@ When you use activator, the steps are as follows:
 4. The user receives the email and clicks on the link
 5. You included `activator.completePasswordReset()` as the express middleware handler for the path in the URL
 6. *activator* checks the one-time password reset key and other information against the user account, and then allows the user to reset the password
+7. Optionally, activator sends a "password reset complete" email.
 
 
 
@@ -156,6 +157,7 @@ Optionally, config can also contain:
 * `id`: the property that contains the ID in a user when it is found using `find`. Use dot notation to specify a property not at the root, e.g. "profiles.local.remoteid". See below for `user.save()`
 * `attachments`: object with attachments to include in messages. See below for detailed attachment formats.
 * `styliner`: boolean that turns on styliner for template compilation
+* `sendPasswordResetComplete`: boolean, determines whether or not to send an email when password reset is complete. Defaults to false.
 
 
 
@@ -426,7 +428,7 @@ If it is successful resetting the password, it will return `200`, a `400` if the
 ### Templates
 In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. The templates are simple text files that contain the text or HTML to send.
 
-The templates should be in the directory passed to `activator.init()` as the option `templates`. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate" or "passwordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
+The templates should be in the directory passed to `activator.init()` as the option `templates`. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate", "passwordreset" or "completepasswordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
 
 Each template file must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
 
@@ -454,6 +456,7 @@ So what variables are available inside the templates?
 * `authorization`: the activation or password reset JSON Web Token
 * `email`: the email of the recipient user
 * `id`: the internal user ID of the user
+* `password`: the new password for the user, especially on completing password reset. **We do NOT recommend putting passwords in emails!! It destroys forward secrecy!** That having been said, if you want to cut the floodgates open, that is your choice. Perhaps this is only for a test or internal system.
 * `request`: the `request` object that was passed to the route handler, from which you can extract lots of headers, for example the protocol at `req.protocol` or the hostname from `req.headers.host`. 
 
 So if your password reset page is on the same host and protocol as the request that came in but at "/reset/my/password", and you want to include the code in the URL as part of a query but also add it to the page, you could do:
@@ -479,10 +482,13 @@ How does it know which? Simple: **filename extension**.
 
 * `activate.html` - use this as an HTML template for activation
 * `passwordreset.html` - use this as an HTML template for password reset
+* `completepasswordreset.html` - use this as an HTML template to indicate that password reset has been completed
 * `activate.txt` - use this as a text template for activation
 * `passwordreset.txt` - use this as a text template for password reset
+* `completepasswordreset.txt` - use this as a text template to indicate that password reset has been completed
 * `activate` - use this as a text template for activation
 * `passwordreset` - use this as a text template for password reset
+* `completepasswordreset` - use this as a text template to indicate that password reset has been completed
 
 Notice that there are two options for text templates: no filename extension (e.g. `activate`) and text extension (e.g. `activate.txt`). How does it know which one to use when both are there? Simple:
 
