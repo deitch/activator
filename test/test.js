@@ -61,7 +61,7 @@ userModel = {
 	setPassword: function (id,password,cb) {
 		if (id && users[id]) {
 			users[id].password = password;
-			cb(null);
+			cb(null,null);
 		} else {
 			cb(404);
 		}
@@ -163,6 +163,36 @@ rHandler = function(email,data,cb) {
 	// set up the default subject
 	data.subject = data.subject || "Password Reset Email";
 	return genHandler(email,"/reset/my/password",data,cb);
+},
+cHandler = function(email,data,cb) {
+	if (!cb) {
+		cb = data;
+		data = {};
+	}
+	// set up the default subject
+	data.subject = data.subject || "Password Reset Complete Email";
+	data.password = data.password || "abcdefgh";
+	
+	return function (rcpt, msgid, content) {
+		var passwordRe = new RegExp('Password: ('+data.password+')'), match;
+		rcpt.should.eql(email);
+		// check for the correct Subject in the email
+		should.exist(content.data);
+		content.headers.subject.should.eql(data.subject);
+		match = content.text.match(passwordRe);
+		match.length.should.eql(2);
+		match[1].should.eql(data.password);
+		
+		if (data.text) {
+			should.exist(content.text);
+			should.exist(bodyMatcher(content.text,data.text));
+		}
+		if (data.html) {
+			should.exist(content.html);
+			should.exist(bodyMatcher(content.html,data.html));
+		}
+		cb(null,null);
+	};
 },
 createActivateHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
@@ -637,48 +667,84 @@ allTests = function () {
 				],done);
 			});
 			it('should succeed for known ID', function(done){
-				var email = users["1"].email, handler;
+				var email = users["1"].email, handler, newpass = "abcdefgh";
 				async.waterfall([
 					function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
 					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 					function (res,cb) {
 						mail.unbind(email,handler);
-						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+						mail.removeAll();
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:newpass}).expect(200,cb);
+					},
+					function (res,cb) {
+						handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						mail.removeAll();
+						cb();
 					}
 				],done);
 			});
 			it('should succeed for known ID with handler', function(done){
-				var email = users["1"].email, handler;
+				var email = users["1"].email, handler, newpass = "a1111bcdefgh";
 				async.waterfall([
 					function (cb) {r.post('/passwordresetnext').type('json').send({user:"1"}).expect('activator','createResetHandler').expect(201,cb);},
 					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 					function (res,cb) {
 						mail.unbind(email,handler);
-						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+						mail.removeAll();
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:newpass}).expect('activator','completeResetHandler').expect(200,cb);
+					},
+					function (res,cb) {
+						handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						mail.removeAll();
+						cb();
 					}
 				],done);
 			});
 			it('should succeed for known email', function(done){
-				var email = users["1"].email, handler;
+				var email = users["1"].email, handler, newpass = "abcdef7777gh";
 				async.waterfall([
 					function (cb) {r.post('/passwordreset').type('json').send({user:email}).expect(201,cb);},
 					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 					function (res,cb) {
 						mail.unbind(email,handler);
+						mail.removeAll();
 						// should have no attachments
 						should(res.content.attachments).undefined();
-						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:newpass}).expect(200,cb);
+					},
+					function (res,cb) {
+						handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						mail.removeAll();
+						cb();
 					}
 				],done);
 			});
 			it('should succeed for known email with handler', function(done){
-				var email = users["1"].email, handler;
+				var email = users["1"].email, handler, newpass = "abcdef343434gh";
 				async.waterfall([
 					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
 					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
 					function (res,cb) {
 						mail.unbind(email,handler);
-						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect('activator','completeResetHandler').expect(200,cb);
+						mail.removeAll();
+						r.put('/passwordresetnext/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:newpass}).expect('activator','completeResetHandler').expect(200,cb);
+					},
+					function (res,cb) {
+						handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						mail.removeAll();
+						cb();
 					}
 				],done);
 			});
@@ -1382,13 +1448,13 @@ describe('activator', function(){
 	describe('initialized', function(){
 		describe('with string transport', function(){
 			before(function(){
-			  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY});
+			  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY,sendPasswordResetComplete:true});
 			});
 			allTests();
 		});
 		describe('with nodemailer transport', function(){
 			before(function(){
-			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY,sendPasswordResetComplete:true});
 			});
 			allTests();
 		});
