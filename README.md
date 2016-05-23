@@ -160,11 +160,12 @@ Optionally, config can also contain:
 
 
 ##### user
-The user object needs to have three methods, with the following signatures:
+The user object needs to have three methods, with an optional fourth, with the following signatures:
 
     user.find(login,callback);
     user.activate(id,callback);
     user.setPassword(id,password,callback);
+    user.generate();
 
 ###### find a user
 
@@ -202,7 +203,13 @@ Where:
 * `password`: new password for the user
 * `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
+###### generate a password
 
+    user.generate();
+
+If provided, `user.generate()` will be called without paramters. It is expected to generate a unique password for a user. The method is called synchronously, so it should be quick. It also has no idea about the identity of the user for whom the password is being generated; that knowledge only serves to weaken the password.
+
+If `user.generate()` exists, any passwords sent by the user in `completePasswordReset` **will be ignored**. Use this to enforce your own password policies.
 
 ##### User ID
 
