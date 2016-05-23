@@ -24,7 +24,11 @@
     {
       "name": "Simon Boulet",
       "url": "https://github.com/siboulet"
-    }
+    },
+		{
+			"name": "Stuart Longland",
+			"url": "https://github.com/sjlongland"
+		}
   ],
   "engines": {
     "node": ">=4.0.0"
