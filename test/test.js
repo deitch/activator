@@ -1382,39 +1382,64 @@ describe('activator', function(){
 	describe('initialized', function(){
 		describe('with string transport', function(){
 			before(function(){
-			  userModel.generate = undefined;
 			  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY});
 			});
-			allTests(false);
+			allTests();
 		});
 		describe('with nodemailer transport', function(){
 			before(function(){
-			  userModel.generate = undefined;
 			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
 			});
-			allTests(false);
+			allTests();
 		});
 		describe('with generate', function(){
-			before(function(){
-			  userModel.generate = function(user, res) {
-			    return 'generated password';
-			  }
-			  activator.init({user:userModel,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+			var newPass = 'someasgahead22swsPASS!!4547', oldPass = "This is a password", um;
+			describe('as a function', function(){
+				before(function(){
+					// extend userModel so we do not accidentally change the clean original
+					um = _.extend({},userModel);
+				  um.generate = function() {
+				    return newPass;
+				  };
+				  activator.init({user:um,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+				});
+				it('should ignore user password and use generated password', function(done){
+					var email = users["1"].email, handler;
+					async.waterfall([
+						function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+						function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+						function (res,cb) {
+							mail.unbind(email,handler);
+							mail.removeAll();
+							r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code, password: oldPass}).expect('activator','completeResetHandler').expect(200, cb);
+						},
+						function (res, cb) {
+							users["1"].password.should.eql(newPass);
+							cb();
+						}
+					],done);
+				});
 			});
-			it('should ignore user password and use generated password', function(done){
-				var email = users["1"].email, handler;
-				async.waterfall([
-					function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
-					function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
-					function (res,cb) {
-						mail.unbind(email,handler);
-						r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code, password: 'abcdefgh'}).expect('activator','completeResetHandler').expect(200, cb);
-					},
-					function (res, cb) {
-						users["1"].password.should.eql("generated password");
-						cb();
-					}
-				],done);
+			describe('undefined', function(){
+				before(function(){
+					um = _.extend({},userModel);
+				  activator.init({user:um,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+				});
+				it('should use user password', function(done){
+					var email = users["1"].email, handler;
+					async.waterfall([
+						function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+						function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+						function (res,cb) {
+							mail.unbind(email,handler);
+							r.put('/passwordresetnext/'+res.user).type("json").send({Authorization:res.code, password: oldPass}).expect('activator','completeResetHandler').expect(200, cb);
+						},
+						function (res, cb) {
+							users["1"].password.should.eql(oldPass);
+							cb();
+						}
+					],done);
+				});
 			});
 		});
 	});
