@@ -160,14 +160,16 @@ Optionally, config can also contain:
 
 
 ##### user
-The user object needs to have three methods, with an optional fourth, with the following signatures:
+The user object needs to have several required methods, and may have several optional others, with the following signatures:
 
     user.find(login,callback);
     user.activate(id,callback);
     user.setPassword(id,password,callback);
     user.generate();
+    user.validatePassword(password[,cb]);
 
 ###### find a user
+**Required**
 
     user.find(login,callback);
 
@@ -183,6 +185,7 @@ Where:
 
 
 ###### activate a user
+**Required**
 
     user.activate(id,callback);
 
@@ -194,6 +197,7 @@ Where:
 activator does not care how you mark the user as activated or not. It doesn't even care of you never check activation (but that is a *really* bad idea, right?). All it cares is that you give it a way to indicate successful activation.
 
 ###### set a password
+**Required**
 
     user.setPassword(id,password,callback);
 
@@ -204,12 +208,37 @@ Where:
 * `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
 ###### generate a password
+*Optional*
 
     user.generate();
 
 If provided, `user.generate()` will be called without paramters. It is expected to generate a unique password for a user. The method is called synchronously, so it should be quick. It also has no idea about the identity of the user for whom the password is being generated; that knowledge only serves to weaken the password.
 
 If `user.generate()` exists, any passwords sent by the user in `completePasswordReset` **will be ignored**. Use this to enforce your own password policies.
+
+###### validate a password
+*Optional*
+
+    user.validatePassword(password[,cb]);
+
+If provided, `user.validatePassword()` will validate policy on a new user password. `user.validatePassword()` may be called synchronously or asynchronously, depending on the signature:
+
+* `validatePassword(password)`: synchronous. Should return the results of validation. If valid, should return `true`; if invalid should return either `false` or optionally a string with an error message or an array of error messages.
+* `validatePassword(password,callback)`: asynchronous. Should call `callback` with the results of validation. 
+
+For async validation, the signature for the callback should be
+
+````javascript
+callback(err,valid);
+````
+
+where:
+
+* `err`: any error incurred
+* `valid`: the results of validation. If valid, should be `true`; if invalid, should be either `false` or optionally a string with an error message or an array of error messages.
+
+If `user.validatePassword()` does not exist, no password checking is done.
+
 
 ##### User ID
 

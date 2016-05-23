@@ -1441,6 +1441,76 @@ describe('activator', function(){
 					],done);
 				});
 			});
+			describe('with validatePassword', function(){
+				describe('synchronous', function(){
+					before(function(){
+					  reset();
+						var um = _.extend({},userModel);
+					  um.validatePassword = function(password) {
+					    return (password.length >= 8);
+					  };
+					  activator.init({user:um,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+					});
+					it('should reject password that fails policy', function(done){
+						var email = users["1"].email, handler;
+						async.waterfall([
+							function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+							function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+							function (res,cb) {
+								mail.unbind(email,handler);
+								mail.removeAll();
+								r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcd"}).expect(400,cb);
+							},
+						],done);
+					});
+					it('should accept password that meets policy', function(done){
+						var email = users["1"].email, handler;
+						async.waterfall([
+							function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+							function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+							function (res,cb) {
+								mail.unbind(email,handler);
+								mail.removeAll();
+								r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+							},
+						],done);
+					});
+				});
+				describe('async', function(){
+					before(function(){
+					  reset();
+						var um = _.extend({},userModel);
+					  um.validatePassword = function(password,callback) {
+					    callback (null,password.length >= 8);
+					  };
+					  activator.init({user:um,transport:mailer.createTransport(maileropts),templates:templates,from:from,signkey:SIGNKEY});
+					});
+					it('should reject password that fails policy', function(done){
+						var email = users["1"].email, handler;
+						async.waterfall([
+							function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+							function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+							function (res,cb) {
+								mail.unbind(email,handler);
+								mail.removeAll();
+								r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcd"}).expect(400,cb);
+							},
+						],done);
+					});
+					it('should accept password that meets policy', function(done){
+						var email = users["1"].email, handler;
+						async.waterfall([
+							function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+							function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+							function (res,cb) {
+								mail.unbind(email,handler);
+								mail.removeAll();
+								r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
+							},
+						],done);
+					});
+				});
+			});
 		});
 	});
 });
