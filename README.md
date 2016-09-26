@@ -164,7 +164,7 @@ Optionally, config can also contain:
 ##### user
 The user object needs to have several required methods, and may have several optional others, with the following signatures:
 
-    user.find(login,callback);
+    user.find(id,callback);
     user.activate(id,callback);
     user.setPassword(id,password,callback);
     user.generate();
@@ -173,11 +173,13 @@ The user object needs to have several required methods, and may have several opt
 ###### find a user
 **Required**
 
-    user.find(login,callback);
+    user.find(id,callback);
 
 Where:
 
-* `login`: string with which the user logs in. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it.
+* `id`: string with which the user can be identified to your system. activator doesn't care if it is an email address, a user ID, or the colour of their parrot. `user.find()` should be able to find a user based on it. Where activator takes this string from depends on the part of the request:
+    * `createActivate()`: From the `request` as `req.activator.id` or, if not found, `req.user.id`
+    * Everywhere else: From the `request` as the parameter user, i.e. `req.param("user")`.
 * `callback`: the callback function that `user.find()` should call when complete. Has the signature `callback(err,data)`. If there is an error, `data` should be `null` or `undefined`; if there is no error but no users found, both `err` *and* `data` **must** be `null` (not `undefined`). If an object is found, then `data` **must** be a single JavaScript object. The `data` object should have:
     - a property containing the user id. By default, it is named `id`, but you can override it with `config.id`.
     - a property containing the email address. By default, it is named `email`, but you can override it with `config.emailProperty`.
