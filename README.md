@@ -370,8 +370,8 @@ The templates content parameter to the callback should be an object with propert
 
 ````json
 {
-  "text": contentOfTextTemplate,
-  "html": contentOfHtmlTemplate
+  "text": {subject: "This is the subject", content: "This is the content"},
+  "html": {subject: "This is the subject", content: "This is the content"}
 }
 ````
 
@@ -383,7 +383,7 @@ It is up to the template driver to decide which types to return - one, both, nei
 * if it is an object with both `text` and `html`, use that to send an email with both text and html
 
 
-Details on template structure and how to use the templates file driver are below.
+Details on variables in the template subject and content, and how to use the templates file driver, are below.
 
 
 
@@ -509,8 +509,6 @@ If it is successful resetting the password, it will return `200`, a `400` if the
 ### Templates Format
 In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. 
 
-Each template content, as returned by a template driver, must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
-
 Remember, activator is a *server-side* product, so it really has no clue if the page the user should go to is https://myserver.com/funny/page/activate/fooooo.html or something a little more sane like https://myserver.com/activate.html
 
 How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the templates for passwordreset and activate. 
@@ -558,7 +556,7 @@ To use the templates file driver, the templates must be simple text files that c
 
 The templates should be in the directory passed to `activator.templates.file(path)` as the first (and only) parameter. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate", "passwordreset" or "completepasswordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
 
-The contents of the templates files themselves follow the content standard for all templates, described above. The file driver makes no changes to the content.
+Each template file content must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
 
 When the file driver is requested to retrieve a template, it will look in the provided directory:
 
