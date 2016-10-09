@@ -21,6 +21,9 @@ Example:
 
 ## Breaking Changes
 
+#### Templates
+Activator version >= 3.0.0 uses template _drivers_ instead of a simple path. Do **not** upgrade until you read the documentation on templates and drivers.
+
 #### Express versions
 Activator version >= 1.0.0 works **only** with express >=4.0.0
 
@@ -108,7 +111,7 @@ When you use activator, the steps are as follows:
 
 1. User selects "reset password" on your Web site / app
 2. You include `activator.createPasswordReset()` as the express middleware handler for the path
-3. *activator* takes the user email address from the user account, a template from the templates directory set on initialization, and the URL from initialization, creates a one-time password reset key, composes an email and sends it.
+3. *activator* takes the user email address from the user account, a template driver function to get each email template, and the URL from initialization, creates a one-time password reset key, composes an email and sends it.
 4. The user receives the email and clicks on the link
 5. You included `activator.completePasswordReset()` as the express middleware handler for the path in the URL
 6. *activator* checks the one-time password reset key and other information against the user account, and then allows the user to reset the password
@@ -122,7 +125,7 @@ To use *activator*, you select the routes you wish to use - activator does not i
 * How to find a user, so it can check for the user
 * How to mark a user as activated, once they have sent the correct verified code
 * How to change a user's password, once they have sent the correct verified code within time and a new password
-* Where to find the templates to use for activation and password reset emails
+* How to get the email template to use for activation and password reset emails
 * What URL the user should be using to activate or reset a password. The URL is included in the email, since the user normally clicks on a link.
 
 All of these are described in greater detail below.
@@ -148,7 +151,7 @@ The `config` object passed to `activator.init()` **must** contain the following 
 * `user`: object that allows activator to find a user object, indicate activation, set a new password. See below.
 * `emailProperty`: the property of the returned user object that is the email of the recipient. Used in `user.find()`. Defaults to "email". Use dot notation to specify a property not at the root, e.g. "profiles.local.email"
 * `transport`: string or pre-configured nodemailer transport that describes how we will send email. See below.
-* `templates`: string describing the full path to the mail templates. See below.
+* `templates`: a function to request templates. See below.
 * `from`: string representing the sender for all messages
 * `signkey`: A string used to sign all of the JWT with HS256. If it is not present, activator has no way of confirming key signing between processes or from one startup of the process to the next.
 
@@ -307,7 +310,83 @@ And if all you know (or want to know) is SMTP, then just use the default SMTP co
 For details aboute nodemailer's transports, see the nodemailer transports at http://www.nodemailer.com/#available-transports
 
 ##### templates
-The directory where you keep text files that serve as mail templates. See below under the section templates.
+A function to request each email template. This function has the following signature:
+
+```js
+activator.init({
+    templates: function (type, lang, callback) { },
+    ...
+})
+```
+
+* `type`: the type of template, e.g. `activate` or `passwordreset`
+* `lang`: the language for the email template, using the i18n specification format, e.g. `en`, `en_US`, etc.
+* `callback`: the function to return the requested text. Optionally this function can return a promise.
+
+The driver _normally_ is expected to be flexible in returning less-specific templates, if the more specific one is not found. However, it is up to the driver to decide if a less-specific template is valid.
+
+For example, if we look for the text template for activation for language `en_US`, we will call:
+
+````javascript
+templates('activate', 'en_US', function (err,result) {}); 
+````
+
+If a precise driver for `en_US` is not found, normally you would return one for `en`, and failing that, a default. However, **it is up to the driver implementation to decide** if that makes sense. One driver might use that fallback, while another might decide that only exact matches to `en_US` are acceptable.
+
+`activator` ships with a default driver to automatically get templates from a filesystem path. To use the default file templates driver, initialize as:
+
+```js
+activator.init({
+    templates: activator.templates.file(pathToTemplates),
+    ...
+})
+```
+
+
+How does `activator` know which language to use when requesting a template? Simple, just set it on `req.lang`. You might have retrieved that from your user preferences, or from your application's default, or perhaps from the http header `Accept-Language`. Either way, you should set it in earlier middleware:
+
+````JavaScript
+		app.use(function(req,res,next){
+			req.lang = myLang; // Set your lang here
+		});
+		app.use(app.router);
+		app.post('/users',activator.createActivate); // etc.
+````
+
+
+The signature of the callback by the template driver should be as follows:
+
+
+````javascript
+function(err,result) {...}
+````
+
+where:
+
+* `err`: errors, if any; `null` if not
+* `result`: content of the templates
+
+The templates content parameter to the callback should be an object with properties for each template type:
+
+````json
+{
+  "text": {subject: "This is the subject", content: "This is the content"},
+  "html": {subject: "This is the subject", content: "This is the content"}
+}
+````
+
+It is up to the template driver to decide which types to return - one, both, neither. Activator will look at the returned object:
+
+* if it is null, send no email
+* if it is an object with just `text` property, use that to send a text email
+* if it is an object with just `html` property, use that to send an html email
+* if it is an object with both `text` and `html`, use that to send an email with both text and html
+
+
+Details on variables in the template subject and content, and how to use the templates file driver, are below.
+
+
+
 
 ##### attachments
 The initialization object property `attachments` is an object with 0, 1 or 2 keys:
@@ -427,18 +506,14 @@ activator assumes the following:
 If it is successful resetting the password, it will return `200`, a `400` if there is an error (including invalid code), and a `404` if the user cannot be found.
 
 
-### Templates
-In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. The templates are simple text files that contain the text or HTML to send.
-
-The templates should be in the directory passed to `activator.init()` as the option `templates`. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate", "passwordreset" or "completepasswordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
-
-Each template file must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
+### Templates Format
+In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. 
 
 Remember, activator is a *server-side* product, so it really has no clue if the page the user should go to is https://myserver.com/funny/page/activate/fooooo.html or something a little more sane like https://myserver.com/activate.html
 
-How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the template files for passwordreset and activate. 
+How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the templates for passwordreset and activate. 
 
-What you can do is have activator embed the necessary information into the templates before sending the email. Each template file follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). All you need to do is embed the following anywhere (and as many times as you want) inside the template:
+What you can do is have activator embed the necessary information into the templates before sending the email. Each template follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). All you need to do is embed the following anywhere (and as many times as you want) inside the template:
 
     <%= abc %>
 		
@@ -476,11 +551,20 @@ So if your password reset page is on the same host and protocol as the request t
 		From: the MySite team
 
 
+### Templates File Driver
+To use the templates file driver, the templates must be simple text files that contain the text or HTML to send.
 
-#### HTML and text templates
-Template files can be either text or HTML. If activator finds html, it will send html email; if activator finds text, it will send text email; if it finds both, it will send both in an email.
+The templates should be in the directory passed to `activator.templates.file(path)` as the first (and only) parameter. It **must** be an absolute directory path (how else is activator going to know, relative to what??). Each template file should be named according to its function: "activate", "passwordreset" or "completepasswordreset". You can, optionally, add ".txt" to the end of the filename, if it makes your life easier.
 
-How does it know which? Simple: **filename extension**.
+Each template file content must have 3 or more lines. The first line is the `Subject` of the email; the second is ignored (I like to use '-----', but whatever works for you), the third and all other lines are the content of the email.
+
+When the file driver is requested to retrieve a template, it will look in the provided directory:
+
+* If it finds an html file, it will return an html template, causing activator to send html email
+* If it finds a text file, it will return a text template, causing activator to send text email
+* If it finds both, it will return both templates, causing activator to send both in an email.
+
+How does it know which file is which? Simple: **filename extension**.
 
 * `activate.html` - use this as an HTML template for activation
 * `passwordreset.html` - use this as an HTML template for password reset
@@ -497,12 +581,12 @@ Notice that there are two options for text templates: no filename extension (e.g
 1. Use the filename without an extension. If it does not exist:
 2. Use the filename with the `.txt` extension.
 
-The content format of both kinds of templates (html and text) is the same as described above and have all of the same variables.
+The content format of both kinds of templates (html and text) is the same as described for all templates and has all of the same variables.
 
 
 #### Localized templates
 
-Activator supports localized templates. You can have one template for the locale `en_GB`, a separate one for `fr` and a third for `he_IL`. Just create the files with the correct name as an extension: filename type (e.g. `activate`), followed by `_` followed by the locale string (e.g. `en_GB` or `fr`) following by the optional filetype extension (nothing or `.txt` or `.html`).
+The file driver (like activator in general) supports localized templates. You can have one template for the locale `en_GB`, a separate one for `fr` and a third for `he_IL`. Just create the files with the correct name as an extension: filename type (e.g. `activate`), followed by `_` followed by the locale string (e.g. `en_GB` or `fr`) following by the optional filetype extension (nothing or `.txt` or `.html`).
 
 Here are some examples:
 
@@ -517,16 +601,6 @@ The search pattern is as follows.
 1. Look for an exact match of the locale, e.g. for `en_GB`, look for `activate_en_GB`
 2. Look for a language match, e.g. for `en_GB`, look for `activate_en`
 3. Look for a default file, e.g. for `en_GB`, look for `activate`
-
-How does it know which language to use? Simple, just set it on `req.lang`. You might have retrieved that from your user preferences, or from your application's default, or perhaps from the http header `Accept-Language`. Either way, you should set it in earlier middleware:
-
-````JavaScript
-		app.use(function(req,res,next){
-			req.lang = myLang; // Set your lang here
-		});
-		app.use(app.router);
-		app.post('/users',activator.createActivate); // etc.
-````
 
 
 ## Example

@@ -6,7 +6,13 @@
 var request = require('supertest'), should = require('should'), express = require('express'), bodyParser = require('body-parser'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 r = request(app), mail, fs = require('fs'),
-activator = require('../lib/activator'), templates = __dirname+'/resources',
+activator = require('../lib/activator'), 
+baseTemplatesPath = __dirname+'/resources',
+htmlTemplatesPath = baseTemplatesPath+'/html',
+localeTemplatesPath = baseTemplatesPath+'/locale',
+templates = activator.templates.file(baseTemplatesPath),
+htmlTemplates = activator.templates.file(htmlTemplatesPath),
+localeTemplates = activator.templates.file(localeTemplatesPath),
 mailer = require('nodemailer'), jwt = require('jsonwebtoken'), SIGNKEY = "1234567890abcdefghijklmn",
 USERS = {
 	"1": {id:"1",childObject:{id:"1"},email:"me@you.com",password:"1234",activated:false}
@@ -1123,10 +1129,8 @@ allTests = function () {
 		});
 	});
 	describe('with styliner property', function() {
-		var templatesPath;
 		before(function(){
-			templatesPath = templates+'/html';
-			activator.init({user:userModel,transport:url,templates:templatesPath,from:from,styliner:true,signkey:SIGNKEY});
+			activator.init({user:userModel,transport:url,templates:htmlTemplates,from:from,styliner:true,signkey:SIGNKEY});
 		});
 
 		it('should inline style tags', function(done) {
@@ -1290,14 +1294,13 @@ allTests = function () {
 		});
 	});
 	describe('with html emails', function(){
-		var atemplate, htemplate, prtemplate, templatesPath;
+		var atemplate, htemplate, prtemplate;
 		before(function(){
-			templatesPath = templates+'/html';
-		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from,signkey:SIGNKEY});
+		  activator.init({user:userModel,transport:url,templates:htmlTemplates,from:from,signkey:SIGNKEY});
 			/*jslint stupid:true */
-			atemplate = splitTemplate(templatesPath+'/activate.txt');
-			htemplate = splitTemplate(templatesPath+'/activate.html');
-			prtemplate = splitTemplate(templatesPath+'/passwordreset.html');
+			atemplate = splitTemplate(htmlTemplatesPath+'/activate.txt');
+			htemplate = splitTemplate(htmlTemplatesPath+'/activate.html');
+			prtemplate = splitTemplate(htmlTemplatesPath+'/passwordreset.html');
 			/*jslint stupid:false */
 		});
 		it('activate should send txt and html', function(done){
@@ -1331,21 +1334,20 @@ allTests = function () {
 
 
 	describe('localized', function(){
-		var parts, templatesPath;
+		var parts;
 		before(function(){
-			templatesPath = templates+'/locale';
-		  activator.init({user:userModel,transport:url,templates:templatesPath,from:from,signkey:SIGNKEY});
+		  activator.init({user:userModel,transport:url,templates:localeTemplates,from:from,signkey:SIGNKEY});
 			/*jslint stupid:true */
 			parts = {
 				txt: {
-					en_GB : splitTemplate(templatesPath+'/activate_en_GB.txt'),
-					fr : splitTemplate(templatesPath+'/activate_fr.txt'),
-					fallback : splitTemplate(templatesPath+'/activate.txt')
+					en_GB : splitTemplate(localeTemplatesPath+'/activate_en_GB.txt'),
+					fr : splitTemplate(localeTemplatesPath+'/activate_fr.txt'),
+					fallback : splitTemplate(localeTemplatesPath+'/activate.txt')
 				},
 				html: {
-					en_GB : splitTemplate(templatesPath+'/activate_en_GB.html'),
-					fr : splitTemplate(templatesPath+'/activate_fr.html'),
-					fallback : splitTemplate(templatesPath+'/activate.html')
+					en_GB : splitTemplate(localeTemplatesPath+'/activate_en_GB.html'),
+					fr : splitTemplate(localeTemplatesPath+'/activate_fr.html'),
+					fallback : splitTemplate(localeTemplatesPath+'/activate.html')
 				}
 			};
 			/*jslint stupid:false */
