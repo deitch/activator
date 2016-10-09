@@ -9,7 +9,7 @@
 var express = require('express'), request = require('supertest'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 mail, 
-activator = require('./lib/activator'), templates = __dirname+'/test/resources',
+activator = require('./lib/activator'), templates = activator.templates.file(__dirname+'/test/resources'),
 users = {
 	"1": {id:"1",email:"me@you.com",password:"1234"}
 },
