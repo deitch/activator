@@ -4,17 +4,17 @@
 activator is the **simple** way to handle user activation and password reset for your nodejs apps!
 
 Example:
-    
+
     var express = require('express'), app = express(), activator = require('activator');
-		
+
 		activator.init({user:userModel,transport:smtpURL,from:"activator@github.com",templates:mailTemplatesDir});
-		
+
 		app.user(app.router);
-		
+
 		// activate a user
 		app.post("/user",activator.createActivate);
 		app.put("/user/:user/active",activator.completeActivate);
-		
+
 		// reset a password
 		app.post("/passwordreset",activator.createPasswordReset);
 		app.put("/passwordreset/:user",activator.completePasswordReset);
@@ -34,7 +34,7 @@ Activator version >= 2.0.0 works **only** with [JSON Web Tokens](https://tools.i
 
 Activator version < 2.0.0 work **only** with custom fields in the database to store the password reset code, password reset time, and activation code.
 
-**The user model used for activator < 2.0.0 is incompatible with the one for activator >= 2.0.0**. 
+**The user model used for activator < 2.0.0 is incompatible with the one for activator >= 2.0.0**.
 
 The signature prior to 2.0.0 was:
 
@@ -75,7 +75,7 @@ This process is quite burdensome to build into your app, since it breaks the usu
 ### Activator Services
 Activator provides express middleware that to perform user activation - create and complete - and password reset - create and complete. It handles one-time link creation, link expiry, validation and all the other parts necessary to make user activation and password reset turnkey.
 
-*activator* also does not tell you what the email you send out should look like; you just provide a template, and activator fills it in. 
+*activator* also does not tell you what the email you send out should look like; you just provide a template, and activator fills it in.
 
 Here are activator's steps in detail.
 
@@ -198,7 +198,7 @@ Where:
 
 Where:
 
-* `id`: ID of the user to activate. 
+* `id`: ID of the user to activate.
 * `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
 activator does not care how you mark the user as activated or not. It doesn't even care of you never check activation (but that is a *really* bad idea, right?). All it cares is that you give it a way to indicate successful activation.
@@ -210,7 +210,7 @@ activator does not care how you mark the user as activated or not. It doesn't ev
 
 Where:
 
-* `id`: ID of the user to change password 
+* `id`: ID of the user to change password
 * `password`: new password for the user
 * `callback`: the callback function that `user.activate()` should call when complete. Has the signature `callback(err)`. If the save is successful, `err` **must** be `null` (not `undefined`).
 
@@ -231,7 +231,7 @@ If `user.generate()` exists, any passwords sent by the user in `completePassword
 If provided, `user.validatePassword()` will validate policy on a new user password. `user.validatePassword()` may be called synchronously or asynchronously, depending on the signature:
 
 * `validatePassword(password)`: synchronous. Should return the results of validation. If valid, should return `true`; if invalid should return either `false` or optionally a string with an error message or an array of error messages.
-* `validatePassword(password,callback)`: asynchronous. Should call `callback` with the results of validation. 
+* `validatePassword(password,callback)`: asynchronous. Should call `callback` with the results of validation.
 
 For async validation, the signature for the callback should be
 
@@ -263,7 +263,7 @@ There are 2 ways activator can send email: SMTP (default) or a passed-in transpo
 If you are using SMTP - which is the default - all you need to pass in is a string describing how activator should connect with your mail server. It is structured as follows:
 
     protocol://user:pass@hostname:port/domain?secureConnection=true
-		
+
 * `protocol`: normally "smtp", can be "smtps"
 * `user`: the user with which to login to the SMTP server, if authentication is required.
 * `pass`: the password with which to login to the SMTP server, if authentication is required.
@@ -280,8 +280,8 @@ And, yes, you can even use the nodemailer SMTP transport instead of a URL string
 How would you do it? Well, SMTP would normally look like this:
 
     activator.init({transport:"smtp://user:pass@mysmtp.com/me.com"});
-		
-Or similar. 
+
+Or similar.
 
 To use a pre-configured transport, you need to:
 
@@ -294,7 +294,7 @@ Here is an SMTP example:
     var smtpTransport = require('nodemailer-smtp-transport'), mailer = require('nodemailer');
 		var transport = mailer.createTransport(smtpTransport(options));
 		activator.init({transport:transport});
-		
+
 Of course, because the 'nodemailer-smtp-transport' is the default in nodemailer, the above example is **identical** to just passing in a URL string, but you can work whichever way works for you.
 
 Here is an Amazon Simple Email Service (SES) example:
@@ -302,7 +302,7 @@ Here is an Amazon Simple Email Service (SES) example:
     var sesTransport = require('nodemailer-ses-transport'), mailer = require('nodemailer');
 		var transport = mailer.createTransport(sesTransport(options));
 		activator.init({transport:transport});
-		
+
 In all cases, it is up to *you* to set the `options` to create the transport.
 
 And if all you know (or want to know) is SMTP, then just use the default SMTP connection with a URL string.
@@ -328,7 +328,7 @@ The driver _normally_ is expected to be flexible in returning less-specific temp
 For example, if we look for the text template for activation for language `en_US`, we will call:
 
 ````javascript
-templates('activate', 'en_US', function (err,result) {}); 
+templates('activate', 'en_US', function (err,result) {});
 ````
 
 If a precise driver for `en_US` is not found, normally you would return one for `en`, and failing that, a default. However, **it is up to the driver implementation to decide** if that makes sense. One driver might use that fallback, while another might decide that only exact matches to `en_US` are acceptable.
@@ -397,7 +397,7 @@ The initialization object property `attachments` is an object with 0, 1 or 2 key
 The value for each of these attachments is an object matching the `attachments` object format from https://github.com/andris9/Nodemailer#attachments
 
 ##### styliner
-The boolean value for the initialization object property styliner specifies whether the [styliner](http://styliner.slaks.net/) libary should be used to compile your html templates. This libary provides inlining of css styles from `<style>` tags for better Gmail support. 
+The boolean value for the initialization object property styliner specifies whether the [styliner](http://styliner.slaks.net/) libary should be used to compile your html templates. This libary provides inlining of css styles from `<style>` tags for better Gmail support.
 
 ### Responses and Your Handlers
 All of the middleware available in activator can function in one of two modes:
@@ -444,7 +444,7 @@ app.post("/users",createUser,activator.createActivateNext,handler); 		// save re
 * `id`: It needs the ID of the user, so that it can call `user.save(id,data)`
 * `response.body`: Since `createUser` (in the above example) or anything you have done to create a user might actually want to send data back, `createActivate()` needs to be able to know what the body you want to send is, when it is successful and calls `res.send(201,data);`
 
-`createActivate()` will look for these properties on `req.activator`. 
+`createActivate()` will look for these properties on `req.activator`.
 
 ````JavaScript
 req.activator = {
@@ -507,47 +507,47 @@ If it is successful resetting the password, it will return `200`, a `400` if the
 
 
 ### Templates Format
-In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates. 
+In order to send an email (yes, we are thinking about SMS for the future), activator needs to have templates.
 
 Remember, activator is a *server-side* product, so it really has no clue if the page the user should go to is https://myserver.com/funny/page/activate/fooooo.html or something a little more sane like https://myserver.com/activate.html
 
-How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the templates for passwordreset and activate. 
+How does activator know what to put in the email? **It doesn't; you do!**. You put the URL in the templates for passwordreset and activate.
 
 What you can do is have activator embed the necessary information into the templates before sending the email. Each template follows a simplified [EJS](http://embeddedjs.com) style (very similar to PHP). All you need to do is embed the following anywhere (and as many times as you want) inside the template:
 
     <%= abc %>
-		
-and every such instance will be replaced by the value of `abc`. So if `abc = "John"`, then 
 
-    This is an email for <%= abc %>, 
+and every such instance will be replaced by the value of `abc`. So if `abc = "John"`, then
+
+    This is an email for <%= abc %>,
 		   hi there <%= abc %>.
 
 Will be turned into
 
     This is an email for John,
 		   hi there John.
-			 
+
 So what variables are available inside the templates?
 
 * `code`: the activation or password reset JSON Web Token
-* `authorization`: the activation or password reset JSON Web Token
+* `authentication `: alias for `code`, the activation or password reset JSON Web Token
 * `email`: the email of the recipient user
 * `id`: the internal user ID of the user
 * `password`: the new password for the user, especially on completing password reset. **We do NOT recommend putting passwords in emails!! It destroys forward secrecy!** That having been said, if you want to cut the floodgates open, that is your choice. Perhaps this is only for a test or internal system.
-* `request`: the `request` object that was passed to the route handler, from which you can extract lots of headers, for example the protocol at `req.protocol` or the hostname from `req.headers.host`. 
+* `request`: the `request` object that was passed to the route handler, from which you can extract lots of headers, for example the protocol at `req.protocol` or the hostname from `req.headers.host`.
 
 So if your password reset page is on the same host and protocol as the request that came in but at "/reset/my/password", and you want to include the code in the URL as part of a query but also add it to the page, you could do:
 
 
     Hello,
-		
+
 		You have asked to reset your password for MySite. To reset your password, please click on the following link:
-		
+
 		<%= request.protocol %><%= request.headers.host %>/reset/my/password?code=<%= code %>&user=<%= id %>
-		
+
 		Or just copy and paste that link and enter your code as <%= code %>.
-		
-		Thanks! 
+
+		Thanks!
 		From: the MySite team
 
 
@@ -610,5 +610,5 @@ An example - just a simplified and stripped down version of the tests - is avail
 To run the tests, from the root directory, run `npm test`.
 
 ## License
-Released under the MIT License. 
+Released under the MIT License.
 Copyright Avi Deitcher https://github.com/deitch
