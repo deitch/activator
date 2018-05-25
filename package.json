@@ -1,7 +1,7 @@
 {
   "name": "activator",
   "description": "simple user activation and password reset for nodejs",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "url": "http://github.com/deitch/activator",
   "author": "Avi Deitcher http://github.com/deitch",
   "contributors": [
@@ -46,7 +46,7 @@
     "express": "4.x",
     "mocha": "^2.4.5",
     "should": "7.x.x",
-    "smtp-tester": "~0.5.1",
+    "smtp-tester": "^1.2.0",
     "supertest": "0.x"
   },
   "keywords": [
