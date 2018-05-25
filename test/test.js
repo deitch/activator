@@ -6,7 +6,7 @@
 var request = require('supertest'), should = require('should'), express = require('express'), bodyParser = require('body-parser'),
 app = express(), _ = require('lodash'), async = require('async'), smtp = require('smtp-tester'),
 r = request(app), mail, fs = require('fs'),
-activator = require('../lib/activator'), 
+activator = require('../lib/activator'),
 baseTemplatesPath = __dirname+'/resources',
 htmlTemplatesPath = baseTemplatesPath+'/html',
 localeTemplatesPath = baseTemplatesPath+'/locale',
@@ -72,7 +72,7 @@ userModel = {
 			cb(404);
 		}
 	},
-}, 
+},
 reset = function () {
 	users = _.cloneDeep(USERS);
 	if (mail && mail.removeAll) {
@@ -120,10 +120,10 @@ genHandler = function(email,path,data,cb) {
 		should.exist(content.data);
 		content.headers.subject.should.eql(subject);
 		// do we have actual content to test? if so, we should ignore templates, because we do not have the request stuff
-		if (data.text) {
-			should.exist(content.text);
-			should.exist(bodyMatcher(content.text,data.text));
-			url = content.text.match(re);
+		if (data.body) {
+			should.exist(content.body);
+			should.exist(bodyMatcher(content.body,data.body));
+			url = content.body.match(re);
 			should.exist(url);
 			// check that code and email match what is in database
 			url.length.should.eql(4);
@@ -141,7 +141,7 @@ genHandler = function(email,path,data,cb) {
 			ret.email.should.eql(email);
 		}
 		if (!ret) {
-			url = (content.text||content.html).match(re);
+			url = (content.body||content.html).match(re);
 			should.exist(url);
 			// check that code and email match what is in database
 			url.length.should.eql(4);
@@ -178,20 +178,20 @@ cHandler = function(email,data,cb) {
 	// set up the default subject
 	data.subject = data.subject || "Password Reset Complete Email";
 	data.password = data.password || "abcdefgh";
-	
+
 	return function (rcpt, msgid, content) {
 		var passwordRe = new RegExp('Password: ('+data.password+')'), match;
 		rcpt.should.eql(email);
 		// check for the correct Subject in the email
 		should.exist(content.data);
 		content.headers.subject.should.eql(data.subject);
-		match = content.text.match(passwordRe);
+		match = content.body.match(passwordRe);
 		match.length.should.eql(2);
 		match[1].should.eql(data.password);
-		
-		if (data.text) {
-			should.exist(content.text);
-			should.exist(bodyMatcher(content.text,data.text));
+
+		if (data.body) {
+			should.exist(content.body);
+			should.exist(bodyMatcher(content.body,data.body));
 		}
 		if (data.html) {
 			should.exist(content.html);
@@ -224,7 +224,7 @@ completeResetHandler = function (req,res,next) {
 	// the header is not normally set, so we know we incurred the handler
 	res.set("activator","completeResetHandler");
 	res.status(req.activator.code).send(req.activator.message);
-}, 
+},
 setLang = function (req,res,next) {
 	if (lang) {
 		req.lang = lang;
@@ -310,7 +310,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+"2"+'/activate').set({"authorization":"Bearer "+res.code}).expect(400,'invalidcode',cb);
 					}
 				],done);
@@ -344,7 +344,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+res.user+'/activate').set({"authorization":"Bearer "+res.code}).expect('activator','completeActivateHandler').expect(200,cb);
 					}
 				],done);
@@ -412,7 +412,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+"2"+'/activate').type("json").query({authorization:res.code}).expect(400,'invalidcode',cb);
 					}
 				],done);
@@ -446,7 +446,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+res.user+'/activate').type("json").query({authorization:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
 					}
 				],done);
@@ -514,7 +514,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+"2"+'/activate').type("json").send({authorization:res.code}).expect(400,'invalidcode',cb);
 					}
 				],done);
@@ -548,7 +548,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// check there is no attachment
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/usersnext/'+res.user+'/activate').type("json").send({authorization:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
 					}
 				],done);
@@ -721,7 +721,7 @@ allTests = function () {
 						mail.unbind(email,handler);
 						mail.removeAll();
 						// should have no attachments
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/passwordreset/'+res.user).set({"Authorization":"Bearer "+res.code}).type("json").send({password:newpass}).expect(200,cb);
 					},
 					function (res,cb) {
@@ -888,7 +888,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// should have no attachments
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/passwordreset/'+res.user).query({Authorization:res.code}).type("json").send({password:"abcdefgh"}).expect(200,cb);
 					}
 				],done);
@@ -1038,7 +1038,7 @@ allTests = function () {
 					function (res,cb) {
 						mail.unbind(email,handler);
 						// should have no attachments
-						should(res.content.attachments).undefined();
+						should(res.content.attachments).be.empty();
 						r.put('/passwordreset/'+res.user).type("json").send({Authorization:res.code,password:"abcdefgh"}).expect(200,cb);
 					}
 				],done);
@@ -1099,9 +1099,9 @@ allTests = function () {
 					should(att).be.ok();
 					// check the attachment matches
 					att.length.should.eql(exp.length);
-					att[0].fileName.should.eql(exp[0].filename);
+					att[0].filename.should.eql(exp[0].filename);
 					att[0].content.toString().should.eql(exp[0].content.toString());
-					att[1].fileName.should.eql(exp[1].filename);
+					att[1].filename.should.eql(exp[1].filename);
 					att[1].content.toString().should.eql(exp[1].content.toString());
 					cb();
 				}
@@ -1119,9 +1119,9 @@ allTests = function () {
 					should(att).be.ok();
 					// check the attachment matches
 					att.length.should.eql(exp.length);
-					att[0].fileName.should.eql(exp[0].filename);
+					att[0].filename.should.eql(exp[0].filename);
 					att[0].content.toString().should.eql(exp[0].content.toString());
-					att[1].fileName.should.eql(exp[1].filename);
+					att[1].filename.should.eql(exp[1].filename);
 					att[1].content.toString().should.eql(exp[1].content.toString());
 					cb();
 				}
@@ -1310,7 +1310,7 @@ allTests = function () {
 				function (res,cb) {
 					res.text.should.equal("2");
 					email = users["2"].email;
-					handler = aHandler(email,{text:atemplate[2],html:htemplate[2]},cb);
+					handler = aHandler(email,{body:atemplate[2],html:htemplate[2]},cb);
 					mail.bind(email,handler);
 				},
 				function (res,cb) {
@@ -1360,7 +1360,7 @@ allTests = function () {
 				function (res,cb) {
 					res.text.should.equal("2");
 					email = users["2"].email;
-					handler = aHandler(email,{subject:parts.txt.en_GB[1],text:parts.txt.en_GB[2],html:parts.html.en_GB[2]},cb);
+					handler = aHandler(email,{subject:parts.txt.en_GB[1],body:parts.txt.en_GB[2],html:parts.html.en_GB[2]},cb);
 					mail.bind(email,handler);
 				},
 				function (res,cb) {
@@ -1377,7 +1377,7 @@ allTests = function () {
 				function (res,cb) {
 					res.text.should.equal("2");
 					email = users["2"].email;
-					handler = aHandler(email,{subject:parts.txt.fr[1],text:parts.txt.fr[2],html:parts.html.fr[2]},cb);
+					handler = aHandler(email,{subject:parts.txt.fr[1],body:parts.txt.fr[2],html:parts.html.fr[2]},cb);
 					mail.bind(email,handler);
 				},
 				function (res,cb) {
@@ -1394,7 +1394,7 @@ allTests = function () {
 				function (res,cb) {
 					res.text.should.equal("2");
 					email = users["2"].email;
-					handler = aHandler(email,{subject:parts.txt.fallback[1],text:parts.txt.fallback[2],html:parts.html.fallback[2]},cb);
+					handler = aHandler(email,{subject:parts.txt.fallback[1],body:parts.txt.fallback[2],html:parts.html.fallback[2]},cb);
 					mail.bind(email,handler);
 				},
 				function (res,cb) {
