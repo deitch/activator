@@ -349,6 +349,24 @@ allTests = function () {
 					}
 				],done);
 			});
+			it('should succeed for query authentication over basic header', function(done){
+				var email, handler;
+				async.waterfall([
+					function (cb) {r.post('/usersnext').expect('activator','createActivateHandler').expect(201,cb);},
+					function (res,cb) {
+						res.text.should.equal("2");
+						email = users["2"].email;
+						handler = aHandler(email,cb);
+						mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						// check there is no attachment
+						should(res.content.attachments).be.empty();
+						r.put('/usersnext/'+res.user+'/activate').set({"authorization":"Basic foo"}).query({authorization:res.code}).expect('activator','completeActivateHandler').expect(200,cb);
+					}
+				],done);
+			});
 		});
 		describe('auth query', function(){
 			it('should fail for known user but bad code', function(done){
@@ -684,6 +702,26 @@ allTests = function () {
 					},
 					function (res,cb) {
 						handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
+					},
+					function (res,cb) {
+						mail.unbind(email,handler);
+						mail.removeAll();
+						cb();
+					}
+				],done);
+			});
+			it('should succeed for query authentication over basic header', function(done){
+			 	var email = users["1"].email, handler, newpass = "abcdefgh";
+			 	async.waterfall([
+			 		function (cb) {r.post('/passwordreset').type('json').send({user:"1"}).expect(201,cb);},
+			 		function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+			 		function (res,cb) {
+			 			mail.unbind(email,handler);
+			 			mail.removeAll();
+			 			r.put('/passwordreset/'+res.user).set({"Authorization":"Basic foo"}).query({authorization:res.code}).type("json").send({password:newpass}).expect(200,cb);
+					},
+					function (res,cb) {
+			 			handler = cHandler(email,{password:newpass},cb); mail.bind(email,handler);
 					},
 					function (res,cb) {
 						mail.unbind(email,handler);
