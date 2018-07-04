@@ -1421,6 +1421,9 @@ describe('activator', function(){
 		app.post('/passwordresetnext',activator.createPasswordResetNext,createResetHandler);
 		app.put('/passwordresetnext/:user',activator.completePasswordResetNext,completeResetHandler);
 	});
+	after( () => {
+           mail.stop();
+        });
 	describe('not initialized', function(){
     it('activate should send 500', function(done){
 			r.post('/users').type("json").send({name:"john"}).expect(500,done);
