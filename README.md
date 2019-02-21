@@ -161,6 +161,7 @@ Optionally, config can also contain:
 * `attachments`: object with attachments to include in messages. See below for detailed attachment formats.
 * `styliner`: boolean that turns on styliner for template compilation
 * `sendPasswordResetComplete`: boolean, determines whether or not to send an email when password reset is complete. Defaults to false.
+* `mailHeaders`: function with `type` and `lang` as parameters to eventually add some custom headers to the email that is being sent.
 
 
 
@@ -395,6 +396,22 @@ The initialization object property `attachments` is an object with 0, 1 or 2 key
 * `passwordreset`: the attachment to add to password reset messages
 
 The value for each of these attachments is an object matching the `attachments` object format from https://github.com/andris9/Nodemailer#attachments
+
+##### custom headers
+The initialization object property `mailHeaders` is a function with 2 parameters:
+
+* `type`: the type of the email being sent
+* `lang`: the localization of the message
+
+below is shown the default behaviour, that does not add headers, as example:
+
+```js
+activator.init({
+    mailHeaders: function (type, lang) { return null; },
+    ...
+})
+```
+
 
 ##### styliner
 The boolean value for the initialization object property styliner specifies whether the [styliner](http://styliner.slaks.net/) libary should be used to compile your html templates. This libary provides inlining of css styles from `<style>` tags for better Gmail support.

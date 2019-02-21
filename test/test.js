@@ -1369,7 +1369,58 @@ allTests = function () {
 			],done);
 		});
 	});
-
+	describe('with custom headers for activate only', function(){
+		var customHeaders = {
+			'return-path': 'return-email@email.com',
+			'x-my-key': 'another header value'
+		};
+		var headerFunc = function(type, lang) {
+			if (type !== 'passwordreset') { 
+				return customHeaders;
+			}
+			return null;
+		};
+		before(function(){
+		  activator.init({user:userModel,transport:url,templates:templates,from:from,signkey:SIGNKEY, mailHeaders: headerFunc});
+		});
+		it('should include correct custom headers for activate', function(done){
+			var email, handler;
+			async.waterfall([
+				function (cb) {r.post('/users').expect(201,cb);},
+				function (res,cb) {
+					res.text.should.equal("2");
+					email = users["2"].email;
+					handler = aHandler(email,cb);
+					mail.bind(email,handler);
+				},
+				function (res,cb) {
+					var hdr = res.content.headers, exp = customHeaders;
+					mail.unbind(email,handler);
+					// check there is an header
+					should(hdr).be.ok();
+					// check that the header contains the custom headers
+					hdr.should.containEql(exp);
+					cb();
+				}
+			],done);
+		});
+		it('should not include headers for passwordreset', function(done){
+			var email = users["1"].email, handler;
+			async.waterfall([
+				function (cb) {r.post('/passwordresetnext').type('json').send({user:email}).expect('activator','createResetHandler').expect(201,cb);},
+				function (res,cb) {handler = rHandler(email,cb); mail.bind(email,handler);},
+				function (res,cb) {
+					var hdr = res.content.headers, exp = customHeaders;
+					mail.unbind(email,handler);
+					// check there is an attachment
+					should(hdr).be.ok();
+					// check that the headers are not added
+					hdr.should.not.containEql(exp);
+					cb();
+				}
+			],done);
+		});
+	});
 
 	describe('localized', function(){
 		var parts;
