@@ -1412,7 +1412,7 @@ allTests = function () {
 				function (res,cb) {
 					var hdr = res.content.headers, exp = customHeaders;
 					mail.unbind(email,handler);
-					// check there is an attachment
+					// check there is an header
 					should(hdr).be.ok();
 					// check that the headers are not added
 					hdr.should.not.containEql(exp);
